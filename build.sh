@@ -24,3 +24,32 @@ else
 fi
 
 echo "==> done: $(pwd)/$APP"
+
+# Install LaunchAgent so Clawde starts automatically on login.
+PLIST="$HOME/Library/LaunchAgents/com.jeongilin.clawde.plist"
+APP_BIN="$(pwd)/$APP/Contents/MacOS/Clawde"
+
+echo "==> installing LaunchAgent"
+mkdir -p "$HOME/Library/LaunchAgents"
+cat > "$PLIST" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.jeongilin.clawde</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>$APP_BIN</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <false/>
+</dict>
+</plist>
+EOF
+
+launchctl bootout "gui/$(id -u)/com.jeongilin.clawde" 2>/dev/null || true
+launchctl bootstrap "gui/$(id -u)" "$PLIST"
+echo "==> LaunchAgent registered: $PLIST"

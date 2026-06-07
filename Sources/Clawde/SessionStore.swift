@@ -8,6 +8,7 @@ final class SessionStore: ObservableObject {
     @Published private var liveCwds: Set<String> = []
 
     private var cache: [String: (mtime: Date, info: SessionInfo)] = [:]
+    private var customNames: [String: String] = CustomNameStore.load()
     private var phase: Double = 0
     private var animTimer: Timer?
     private var scanTimer: Timer?
@@ -19,6 +20,20 @@ final class SessionStore: ObservableObject {
         refresh()
         startScanning()
         startAnimating()
+    }
+
+    func setCustomName(sessionId: String, name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            customNames.removeValue(forKey: sessionId)
+        } else {
+            customNames[sessionId] = trimmed
+        }
+        CustomNameStore.save(customNames)
+        // Reflect immediately without waiting for next scan tick.
+        for i in sessions.indices where sessions[i].sessionId == sessionId {
+            sessions[i].customName = trimmed.isEmpty ? nil : trimmed
+        }
     }
 
     /// Open a session: focus its existing iTerm tab, else open a new one.
@@ -46,8 +61,12 @@ final class SessionStore: ObservableObject {
 
     func refresh() {
         var localCache = cache
+        let names = customNames
         DispatchQueue.global(qos: .utility).async { [weak self] in
-            let found = SessionScanner.scan(cache: &localCache)
+            var found = SessionScanner.scan(cache: &localCache)
+            for i in found.indices {
+                found[i].customName = names[found[i].sessionId]
+            }
             let detected = ProcessDetector.liveCwds()
             DispatchQueue.main.async {
                 guard let self else { return }

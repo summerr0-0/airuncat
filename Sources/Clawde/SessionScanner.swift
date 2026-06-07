@@ -22,6 +22,7 @@ struct SessionInfo: Identifiable {
     let id: String              // file path (stable & unique)
     let sessionId: String       // UUID stem of the .jsonl (for `claude -r`)
     var title: String           // ai-title or first instruction
+    var customName: String?     // user-assigned display name (overrides title)
     var projectName: String
     var cwd: String
     var gitBranch: String
@@ -33,6 +34,7 @@ struct SessionInfo: Identifiable {
     var category: SessionCategory
 
     var status: SessionStatus { SessionStatus(lastActivity: lastActivity) }
+    var displayName: String { customName ?? title }
 }
 
 /// Reads Claude Code session transcripts from ~/.claude/projects/*/*.jsonl
@@ -154,6 +156,7 @@ struct SessionScanner {
             id: path,
             sessionId: sessionId,
             title: trim(title, 70),
+            customName: nil,
             projectName: project,
             cwd: cwd,
             gitBranch: gitBranch,

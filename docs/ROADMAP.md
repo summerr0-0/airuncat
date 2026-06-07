@@ -41,6 +41,8 @@
 - [ ] 로그인 자동 시작 (LaunchAgent)
 - [ ] Gemini CLI 세션 소스 연동 (`~/.gemini/tmp/<hash>/chats/*.jsonl`)
 - [ ] 멈춤/완료 알림, 고양이 미세 튜닝
+- [ ] 세션별 커스텀 이름 붙이기 (사용자 직접 편집)
+- [ ] 세션 태그 수동 선택 (사용자가 직접 태그 할당/관리)
 
 ### Phase 2 — Skills Manager
 - [ ] `06_AI_Config/SKILL_*.md` 스캔 + claude/gemini 링크 상태 매핑
@@ -56,7 +58,7 @@
 ## Next Action
 - [ ] iTerm2에 "Clawde가 제어" 자동화 권한 1회 허용 -> 클릭 시 탭 포커스 최종 확인
 - [ ] 앞으로 AI 세션을 iTerm2에서 운용 시작 (Warp 대신)
-- [ ] `git init` + GitHub 레포 생성 (PR 단계 전제)
+- [ ] `git init` + GitHub 레포 `airuncat` 연결 (`github.com/summerr0-0/airuncat`) (PR 단계 전제)
 - [ ] Phase 2(스킬 매니저) "상세 기획"부터 워크플로우 1단계로 시작
 
 ## 주요 결정 / 기술 메모

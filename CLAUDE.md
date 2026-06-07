@@ -1,4 +1,4 @@
-# Clawde
+# airuncat
 
 메뉴바에 사는 고양이가 병렬로 도는 AI 세션(Claude Code)을 한눈에 관제하고, 클릭하면 해당 세션으로 복귀시키는 macOS 메뉴바 앱. AI가 바쁠수록 고양이가 빨리 뛴다.
 
@@ -9,8 +9,8 @@ Swift 6.3 | SwiftUI MenuBarExtra | AppKit (벡터 고양이 드로잉) | SwiftPM
 ## Directory Map
 
 ```
-Sources/Clawde/
-  ClawdeApp.swift       앱 진입점, MenuBarExtra scene, 디버그 렌더(--render-frames)
+Sources/airuncat/
+  AiruncatApp.swift     앱 진입점, MenuBarExtra scene, 디버그 렌더(--render-frames)
   SessionStore.swift    @MainActor ObservableObject, 스캔/애니메이션 타이머
   SessionScanner.swift  ~/.claude/projects/*/*.jsonl 파싱 (mtime 캐시)
   CatRenderer.swift     벡터 고양이 프레임 (질주/수면, 템플릿 이미지)
@@ -40,7 +40,7 @@ docs/                   데이터 소스 / 설계 상세
 ## Active Hooks
 
 - `swift build` on .swift edit (컴파일 체크)
-- `.build/`, `Clawde.app/` 편집 차단 (빌드 산출물)
+- `.build/`, `airuncat.app/` 편집 차단 (빌드 산출물)
 - `~/.claude/projects/**/*.jsonl` 편집 차단 (세션 읽기 전용)
 
 ## Workflow

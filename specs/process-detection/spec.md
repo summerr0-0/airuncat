@@ -93,13 +93,13 @@ pgrep + lsof로 실제 claude 프로세스가 세션 cwd에서 돌고 있는지 
 ### T1: ProcessDetector 신규 파일 작성 [infra]
 - **Fulfills**: R0.1, R0.2
 - **Depends on**: (none)
-- **Files**: `Sources/Clawde/ProcessDetector.swift` (신규)
+- **Files**: `Sources/airuncat/ProcessDetector.swift` (신규)
 - **Note**: `static func liveCwds() -> Set<String>` — `pgrep -x claude` PIDs 수집 후 각 PID에 대해 `lsof -p <pid> | awk 'NR>1 && $4=="cwd"{print $NF}'` 실행, 결과를 Set으로 반환
 
 ### T2: SessionStore에 liveCwds 통합 + visibleSessions 교체 [vertical]
 - **Fulfills**: R0.3, R0.4, R1.1, R2.1, R2.2
 - **Depends on**: T1
-- **Files**: `Sources/Clawde/SessionStore.swift`
+- **Files**: `Sources/airuncat/SessionStore.swift`
 - **Note**: `@Published var liveCwds: Set<String> = []` 추가. `refresh()` 배경 블록에서 `ProcessDetector.liveCwds()` 호출 후 main thread에서 `self.liveCwds = detected`로 교체. `visibleSessions`를 `sessions.filter { liveCwds.contains($0.cwd) }`로 변경.
 
 ## External Dependencies

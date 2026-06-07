@@ -33,7 +33,7 @@ struct MenuContentView: View {
 
     private var header: some View {
         HStack(spacing: 8) {
-            Text("Clawde")
+            Text("airuncat")
                 .font(.system(size: 13, weight: .bold))
             Spacer()
             Text(summary)

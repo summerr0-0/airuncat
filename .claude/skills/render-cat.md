@@ -5,8 +5,8 @@
 ## Steps
 
 1. 빌드: `cd /Users/jeong-ilin/study/clawde && swift build -c release`
-2. 렌더: `./.build/release/Clawde --render-frames /tmp/clawde_frames.png`
-3. `/tmp/clawde_frames.png` 를 열어 질주 프레임 + 수면 포즈를 확인한다.
+2. 렌더: `./.build/release/airuncat --render-frames /tmp/airuncat_frames.png`
+3. `/tmp/airuncat_frames.png` 를 열어 질주 프레임 + 수면 포즈를 확인한다.
 
 ## Usage
 

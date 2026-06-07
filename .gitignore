@@ -1,5 +1,6 @@
 .build/
 Clawde.app/
+airuncat.app/
 *.swiftpm
 .DS_Store
 .omc/

@@ -49,7 +49,7 @@
 ### T1: visibleSessions 필터에서 resting 세션 제외 [vertical]
 - **Fulfills**: R0, R1
 - **Depends on**: (none)
-- **Files**: `Sources/Clawde/SessionStore.swift` (L32-35)
+- **Files**: `Sources/airuncat/SessionStore.swift` (L32-35)
 - **Note**: R1.1(자동 재표시)은 기존 computed property 구조상 T1 변경만으로 자동 충족됨 — 추가 코드 불필요
 
 ## External Dependencies

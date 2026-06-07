@@ -7,7 +7,7 @@ import AppKit
 enum ITermController {
 
     static let bundleID = "com.googlecode.iterm2"
-    static let logPath = "/tmp/clawde-focus.log"
+    static let logPath = "/tmp/airuncat-focus.log"
 
     /// Focus the existing iTerm tab for `session`, else open a new one.
     static func open(_ session: SessionInfo) {

@@ -3,13 +3,13 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleName</key>
-    <string>Clawde</string>
+    <string>airuncat</string>
     <key>CFBundleDisplayName</key>
-    <string>Clawde</string>
+    <string>airuncat</string>
     <key>CFBundleIdentifier</key>
-    <string>com.jeongilin.clawde</string>
+    <string>com.jeongilin.airuncat</string>
     <key>CFBundleExecutable</key>
-    <string>Clawde</string>
+    <string>airuncat</string>
     <key>CFBundleVersion</key>
     <string>1</string>
     <key>CFBundleShortVersionString</key>
@@ -25,6 +25,6 @@
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSAppleEventsUsageDescription</key>
-    <string>Clawde controls iTerm2 to jump to the terminal tab running a selected AI session.</string>
+    <string>airuncat controls iTerm2 to jump to the terminal tab running a selected AI session.</string>
 </dict>
 </plist>

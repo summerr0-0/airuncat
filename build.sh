@@ -1,33 +1,33 @@
 #!/bin/bash
-# Build Clawde and assemble a .app bundle (no Xcode required, CLT only).
+# Build airuncat and assemble a .app bundle (no Xcode required, CLT only).
 set -e
 cd "$(dirname "$0")"
 
 echo "==> swift build -c release"
 swift build -c release
 
-APP="Clawde.app"
-BIN=".build/release/Clawde"
+APP="airuncat.app"
+BIN=".build/release/airuncat"
 
 echo "==> assembling $APP"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp "$BIN" "$APP/Contents/MacOS/Clawde"
+cp "$BIN" "$APP/Contents/MacOS/airuncat"
 cp Info.plist "$APP/Contents/Info.plist"
 
 echo "==> codesign with stable self-signed identity (so Accessibility grant persists across rebuilds)"
-if security find-certificate -c "Clawde Self-Signed" >/dev/null 2>&1; then
-  codesign --force --deep --sign "Clawde Self-Signed" --identifier com.jeongilin.clawde "$APP"
+if security find-certificate -c "airuncat Self-Signed" >/dev/null 2>&1; then
+  codesign --force --deep --sign "airuncat Self-Signed" --identifier com.jeongilin.airuncat "$APP"
 else
-  echo "   WARN: 'Clawde Self-Signed' cert not found -> ad-hoc (Accessibility will reset each build)"
-  codesign --force --deep --sign - --identifier com.jeongilin.clawde "$APP" >/dev/null 2>&1 || true
+  echo "   WARN: 'airuncat Self-Signed' cert not found -> ad-hoc (Accessibility will reset each build)"
+  codesign --force --deep --sign - --identifier com.jeongilin.airuncat "$APP" >/dev/null 2>&1 || true
 fi
 
 echo "==> done: $(pwd)/$APP"
 
-# Install LaunchAgent so Clawde starts automatically on login.
-PLIST="$HOME/Library/LaunchAgents/com.jeongilin.clawde.plist"
-APP_BIN="$(pwd)/$APP/Contents/MacOS/Clawde"
+# Install LaunchAgent so airuncat starts automatically on login.
+PLIST="$HOME/Library/LaunchAgents/com.jeongilin.airuncat.plist"
+APP_BIN="$(pwd)/$APP/Contents/MacOS/airuncat"
 
 echo "==> installing LaunchAgent"
 mkdir -p "$HOME/Library/LaunchAgents"
@@ -37,7 +37,7 @@ cat > "$PLIST" <<EOF
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.jeongilin.clawde</string>
+    <string>com.jeongilin.airuncat</string>
     <key>ProgramArguments</key>
     <array>
         <string>$APP_BIN</string>
@@ -50,6 +50,6 @@ cat > "$PLIST" <<EOF
 </plist>
 EOF
 
-launchctl bootout "gui/$(id -u)/com.jeongilin.clawde" 2>/dev/null || true
+launchctl bootout "gui/$(id -u)/com.jeongilin.airuncat" 2>/dev/null || true
 launchctl bootstrap "gui/$(id -u)" "$PLIST"
 echo "==> LaunchAgent registered: $PLIST"

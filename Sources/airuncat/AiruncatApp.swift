@@ -2,15 +2,15 @@ import SwiftUI
 import AppKit
 
 @main
-struct ClawdeApp: App {
+struct AiruncatApp: App {
     @StateObject private var store = SessionStore()
 
     init() {
-        // Debug path: `Clawde --render-frames [outPath]` dumps a contact sheet and exits.
+        // Debug path: `airuncat --render-frames [outPath]` dumps a contact sheet and exits.
         let args = CommandLine.arguments
         if let idx = args.firstIndex(of: "--render-frames") {
             _ = NSApplication.shared   // ensure AppKit is initialized for lockFocus
-            let out = (idx + 1 < args.count) ? args[idx + 1] : "/tmp/clawde_frames.png"
+            let out = (idx + 1 < args.count) ? args[idx + 1] : "/tmp/airuncat_frames.png"
             DebugRender.contactSheet(to: out)
             print("wrote \(out)")
             exit(0)

@@ -2,12 +2,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "Clawde",
+    name: "airuncat",
     platforms: [.macOS(.v13)],
     targets: [
         .executableTarget(
-            name: "Clawde",
-            path: "Sources/Clawde"
+            name: "airuncat",
+            path: "Sources/airuncat"
         )
     ]
 )

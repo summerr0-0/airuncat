@@ -16,7 +16,7 @@ Claude가 양쪽 의견을 종합한다. 워크플로우(`docs/workflow.md`)의 
 ```bash
 omc ask gemini -p "다음 기획서를 시니어 리뷰어 관점에서 검토해줘.
 누락된 요구사항, 모순, 숨은 리스크만 bullet로. 동의하는 부분은 생략.
-맥락: Swift/SwiftUI 메뉴바 앱(Clawde), CLT 빌드.
+맥락: Swift/SwiftUI 메뉴바 앱(airuncat), CLT 빌드.
 
 $(cat docs/specs/<feature>.md)"
 ```

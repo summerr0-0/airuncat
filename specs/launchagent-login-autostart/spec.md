@@ -8,7 +8,7 @@
 - **Approved at**: 2026-06-06
 
 ## Goal
-macOS 로그인 시 Clawde가 자동으로 실행되도록 LaunchAgent를 설치한다.
+macOS 로그인 시 airuncat이 자동으로 실행되도록 LaunchAgent를 설치한다.
 
 ## Non-goals
 - 앱 업데이트 자동 배포 (Sparkle 등)
@@ -17,9 +17,9 @@ macOS 로그인 시 Clawde가 자동으로 실행되도록 LaunchAgent를 설치
 - GUI 설정 패널 (메뉴바 토글 UI는 별도 피처)
 
 ## Research
-- `build.sh`는 프로젝트 루트에 `Clawde.app` 번들 조립 후 ad-hoc/자체서명 코드사인 — `build.sh:1-25`
-- 번들 ID: `com.jeongilin.clawde` — `Info.plist:8`
-- 현재 앱 위치: `/Users/jeong-ilin/study/clawde/Clawde.app` (프로젝트 디렉토리, 비표준)
+- `build.sh`는 프로젝트 루트에 `airuncat.app` 번들 조립 후 ad-hoc/자체서명 코드사인 — `build.sh:1-25`
+- 번들 ID: `com.jeongilin.airuncat` — `Info.plist:8`
+- 현재 앱 위치: `/Users/jeong-ilin/study/clawde/airuncat.app` (프로젝트 디렉토리, 비표준)
 - LaunchAgent 경로 패턴: `~/Library/LaunchAgents/{bundle-id}.plist` (기존 com.google.*, com.valvesoftware.* 참고)
 - LaunchAgent 등록 방법: `launchctl load` (구형, deprecated) vs `launchctl bootstrap gui/$(id -u)` (macOS 10.11+, 권장)
 - LSUIElement = true → Dock 아이콘 없음, 메뉴바 전용 — `Info.plist:20`
@@ -27,7 +27,7 @@ macOS 로그인 시 Clawde가 자동으로 실행되도록 LaunchAgent를 설치
 - 기존 LaunchAgent 비활성화: `launchctl bootout gui/$(id -u) {plist}` 또는 `launchctl unload`
 
 ## Confirmed Goal
-`~/Library/LaunchAgents/com.jeongilin.clawde.plist`를 생성·등록해 macOS 로그인 시 Clawde.app이 자동 실행된다. 설치는 `build.sh` 끝에 통합한다. `uninstall.sh`로 제거도 가능하다. 재로그인 후 아무것도 안 해도 메뉴바에 고양이가 나타난다.
+`~/Library/LaunchAgents/com.jeongilin.airuncat.plist`를 생성·등록해 macOS 로그인 시 airuncat.app이 자동 실행된다. 설치는 `build.sh` 끝에 통합한다. `uninstall.sh`로 제거도 가능하다. 재로그인 후 아무것도 안 해도 메뉴바에 고양이가 나타난다.
 
 ## Decisions
 
@@ -35,13 +35,13 @@ macOS 로그인 시 Clawde가 자동으로 실행되도록 LaunchAgent를 설치
 - **Status**: resolved
 - **Rationale**: 빌드 후 자동으로 plist 생성·등록. 매 빌드마다 경로가 갱신되므로 프로젝트 이동 후 재빌드 시 자동 수정. **Steelman 반론**: build.sh는 빌드 도구이지 인스톨러가 아니므로 단일책임 위반이라는 주장. **반박**: build.sh는 이미 코드사인(설치 부작용)을 포함하고 있어 "빌드 = 로컬 배포"가 이 프로젝트의 기존 패턴. 개인 도구이므로 별도 파일보다 단일 스크립트가 실용적. 향후 분리가 필요하면 `INSTALL=1 ./build.sh` 플래그로 격리 가능.
 
-### D2: 앱 위치 — 프로젝트 폴더 (`/Users/jeong-ilin/study/clawde/Clawde.app`)
+### D2: 앱 위치 — 프로젝트 폴더 (`/Users/jeong-ilin/study/clawde/airuncat.app`)
 - **Status**: resolved
 - **Rationale**: /Applications 복사는 경로 관리가 단순해지지만 매 빌드마다 복사 필요. 프로젝트 폴더 유지로 개발 흐름 간소화. 이동 시 재빌드로 plist 재생성.
 
 ### D3: 제거 — `uninstall.sh` 별도 작성
 - **Status**: resolved
-- **Rationale**: `launchctl bootout gui/$(id -u) {plist}` 실행 → launchd가 실행 중인 Clawde를 종료하고 서비스를 등록 해제. 그 후 plist 파일 삭제. bootout이 프로세스 종료까지 처리하므로 별도 kill 불필요. install과 분리해 실수로 삭제 방지.
+- **Rationale**: `launchctl bootout gui/$(id -u) {plist}` 실행 → launchd가 실행 중인 airuncat을 종료하고 서비스를 등록 해제. 그 후 plist 파일 삭제. bootout이 프로세스 종료까지 처리하므로 별도 kill 불필요. install과 분리해 실수로 삭제 방지.
 
 ### D4: launchctl 등록 방식 — `bootstrap gui/$(id -u)`
 - **Status**: resolved
@@ -66,9 +66,9 @@ macOS 로그인 시 Clawde가 자동으로 실행되도록 LaunchAgent를 설치
 
 ## Requirements
 
-### R0: 로그인 시 Clawde 자동 실행
+### R0: 로그인 시 airuncat 자동 실행
 
-#### R0.1: 재로그인 후 Clawde가 자동 시작된다
+#### R0.1: 재로그인 후 airuncat이 자동 시작된다
 - **Given**: LaunchAgent가 설치된 상태에서 macOS에 로그아웃 후 재로그인
 - **When**: 세션이 시작된다
 - **Then**: 아무 작업 없이 메뉴바에 고양이 아이콘이 나타난다
@@ -80,12 +80,12 @@ macOS 로그인 시 Clawde가 자동으로 실행되도록 LaunchAgent를 설치
 #### R1.1: build.sh가 절대경로가 박힌 plist를 생성한다
 - **Given**: `/Users/jeong-ilin/study/clawde/build.sh` 실행
 - **When**: 빌드·번들 조립 완료 후 plist 생성 단계
-- **Then**: `~/Library/LaunchAgents/com.jeongilin.clawde.plist`가 생성되고, `ProgramArguments`에 `/Users/jeong-ilin/study/clawde/Clawde.app/Contents/MacOS/Clawde` 절대경로가 포함된다
+- **Then**: `~/Library/LaunchAgents/com.jeongilin.airuncat.plist`가 생성되고, `ProgramArguments`에 `/Users/jeong-ilin/study/clawde/airuncat.app/Contents/MacOS/airuncat` 절대경로가 포함된다
 
 #### R1.2: build.sh가 LaunchAgent를 등록(bootstrap)한다
 - **Given**: plist가 생성된 직후
 - **When**: `launchctl bootstrap gui/$(id -u)` 실행
-- **Then**: LaunchAgent가 등록되고 Clawde가 즉시 실행된다
+- **Then**: LaunchAgent가 등록되고 airuncat이 즉시 실행된다
 
 #### R1.3: 이미 등록된 LaunchAgent가 있어도 build.sh가 중단되지 않는다
 - **Given**: 이전 build.sh 실행으로 LaunchAgent가 이미 로드된 상태
@@ -101,15 +101,15 @@ macOS 로그인 시 Clawde가 자동으로 실행되도록 LaunchAgent를 설치
 
 ### R2: uninstall.sh로 LaunchAgent 제거 (D3)
 
-#### R2.1: uninstall.sh가 실행 중인 Clawde를 종료하고 서비스를 해제한다
-- **Given**: LaunchAgent가 등록되고 Clawde가 실행 중
+#### R2.1: uninstall.sh가 실행 중인 airuncat을 종료하고 서비스를 해제한다
+- **Given**: LaunchAgent가 등록되고 airuncat이 실행 중
 - **When**: `./uninstall.sh` 실행
-- **Then**: `launchctl bootout`으로 Clawde 프로세스가 종료되고 서비스가 등록 해제된다
+- **Then**: `launchctl bootout`으로 airuncat 프로세스가 종료되고 서비스가 등록 해제된다
 
 #### R2.2: uninstall.sh가 plist 파일을 삭제한다
-- **Given**: `~/Library/LaunchAgents/com.jeongilin.clawde.plist` 존재
+- **Given**: `~/Library/LaunchAgents/com.jeongilin.airuncat.plist` 존재
 - **When**: uninstall.sh 실행
-- **Then**: plist 파일이 삭제되고 재로그인 시 Clawde가 자동 실행되지 않는다
+- **Then**: plist 파일이 삭제되고 재로그인 시 airuncat이 자동 실행되지 않는다
 
 ## Tasks
 

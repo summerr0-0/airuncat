@@ -1,4 +1,4 @@
-# Clawde Development Workflow
+# airuncat Development Workflow
 
 모든 기능/Phase는 아래 8단계를 순서대로 거친다. 작성(authoring)과 리뷰(review)는
 항상 분리하고, 같은 패스에서 self-approve 하지 않는다.

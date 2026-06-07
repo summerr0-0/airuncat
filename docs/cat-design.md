@@ -29,4 +29,4 @@
 
 ## 검수
 
-`CatRenderer` 수정 후 `/render-cat` 으로 `/tmp/clawde_frames.png` 컨택트시트를 뽑아 확인한다.
+`CatRenderer` 수정 후 `/render-cat` 으로 `/tmp/airuncat_frames.png` 컨택트시트를 뽑아 확인한다.

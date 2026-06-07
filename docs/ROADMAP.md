@@ -1,4 +1,4 @@
-# Clawde Roadmap
+# airuncat Roadmap
 
 메뉴바에 사는 작은 고양이가 병렬로 도는 모든 AI 작업(Claude Code + Gemini CLI)을 한눈에
 관제하고, 클릭하면 그 세션으로 이동하며, 프롬프트/스킬을 한 곳에서 관리하는 통합 도구.
@@ -56,7 +56,7 @@
 - [ ] 통합 세션 타임라인, 스킬 동기화 상태판, 사용량 집계
 
 ## Next Action
-- [ ] iTerm2에 "Clawde가 제어" 자동화 권한 1회 허용 -> 클릭 시 탭 포커스 최종 확인
+- [ ] iTerm2에 "airuncat이 제어" 자동화 권한 1회 허용 -> 클릭 시 탭 포커스 최종 확인
 - [ ] 앞으로 AI 세션을 iTerm2에서 운용 시작 (Warp 대신)
 - [ ] `git init` + GitHub 레포 `airuncat` 연결 (`github.com/summerr0-0/airuncat`) (PR 단계 전제)
 - [ ] Phase 2(스킬 매니저) "상세 기획"부터 워크플로우 1단계로 시작
@@ -67,5 +67,5 @@
 - 고양이: 벡터 드로잉 + 템플릿 이미지 (다크/라이트 자동)
 - 데이터: `~/.claude/projects/<encoded-cwd>/<sessionId>.jsonl`, mtime로 활성 판정
 - 세션 이동: Warp는 AppleScript 미지원 -> 탭 포커스 불가 -> iTerm2로 전환
-- 권한 영속: ad-hoc 서명은 재빌드마다 TCC 권한이 풀림 -> 자체 서명 인증서 `Clawde Self-Signed`로 사인
+- 권한 영속: ad-hoc 서명은 재빌드마다 TCC 권한이 풀림 -> 자체 서명 인증서 `airuncat Self-Signed`로 사인
 - 참고: ai-monitor(hyunho058)는 모니터링 전용, Gemini 로그 경로만 차용

@@ -1,12 +1,12 @@
 # Data Sources
 
-Clawde가 읽는 외부 데이터와 세션 재개 메커니즘.
+airuncat이 읽는 외부 데이터와 세션 재개 메커니즘.
 
 ## Claude Code 세션
 
 - 위치: `~/.claude/projects/<encoded-cwd>/<sessionId>.jsonl`
 - 파일 1개 = 세션 1개. 파일명 stem = `sessionId` (UUID, `claude -r`에 사용).
-- 각 라인은 JSON 이벤트. Clawde가 쓰는 `type`:
+- 각 라인은 JSON 이벤트. airuncat이 쓰는 `type`:
   - `ai-title` → `aiTitle`: 자동 생성 세션 제목 (드롭다운 제목)
   - `user`: `message.content`(첫 실제 지시 추출), `cwd`, `gitBranch`, `timestamp`
   - `assistant`: `message.content[]`의 `tool_use` → 마지막 도구/인자 = "지금 하는 일"
@@ -29,5 +29,5 @@ Clawde가 읽는 외부 데이터와 세션 재개 메커니즘.
 4. 매칭 실패 시 새 iTerm 창에서 `cd <cwd> && claude -r <id>`
 
 배경: Warp는 AppleScript 미지원이라 탭 포커스가 불가능 -> iTerm2로 전환.
-Clawde.app은 자체 서명 인증서(`Clawde Self-Signed`)로 사인하므로, 자동화/접근성 권한이
+airuncat.app은 자체 서명 인증서(`airuncat Self-Signed`)로 사인하므로, 자동화/접근성 권한이
 재빌드 후에도 유지된다 (ad-hoc 서명은 빌드마다 권한이 풀림).

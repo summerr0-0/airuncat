@@ -22,8 +22,8 @@
 - 현재 title 표시: `Text(session.title)` in `SessionRow` — `MenuContentView.swift:92`
 - 기존 영속 레이어 없음 (UserDefaults/JSON 미사용) — 신규 구현 필요
 - `sessionId` = JSONL 파일명 stem (UUID): `SessionScanner.swift:151`
-- `SessionStore` 단일 인스턴스, 3초마다 갱신: `ClawdeApp.swift:6`, `SessionStore.swift:15`
-- 번들 ID: `com.jeongilin.clawde` — `Info.plist:10` (Application Support 경로 결정 시 사용)
+- `SessionStore` 단일 인스턴스, 3초마다 갱신: `AiruncatApp.swift:6`, `SessionStore.swift:15`
+- 번들 ID: `com.jeongilin.airuncat` — `Info.plist:10` (Application Support 경로 결정 시 사용)
 - `FileManager.default.homeDirectoryForCurrentUser` 접근 패턴 있음 — `SessionScanner.swift:38-47`
 
 ## Confirmed Goal
@@ -45,11 +45,11 @@ Claude Code 세션마다 사용자가 직접 이름을 편집할 수 있다. 커
 
 ### D4: 파일 오류 처리 — 빈 사전으로 시작
 - **Status**: resolved
-- **Rationale**: custom-names.json이 없거나 손상됐으면 빈 `[String: String]`으로 초기화. 앱이 중단되지 않고 커스텀 이름만 유실. 디렉토리(`~/.clawde/`) 미존재 시 첫 저장 때 mkdir -p.
+- **Rationale**: custom-names.json이 없거나 손상됐으면 빈 `[String: String]`으로 초기화. 앱이 중단되지 않고 커스텀 이름만 유실. 디렉토리(`~/.airuncat/`) 미존재 시 첫 저장 때 mkdir -p.
 
-### D5: 저장 위치 — `~/.clawde/custom-names.json`
+### D5: 저장 위치 — `~/.airuncat/custom-names.json`
 - **Status**: resolved
-- **Rationale**: UserDefaults는 마이그레이션/백업이 불편. Application Support는 경로가 길고 복잡. `~/.clawde/`는 Clawde 전용 홈 폴더로 추후 다른 설정 파일 확장이 용이. 이미 `~/.claude/` 패턴과 일관성 있음.
+- **Rationale**: UserDefaults는 마이그레이션/백업이 불편. Application Support는 경로가 길고 복잡. `~/.airuncat/`는 airuncat 전용 홈 폴더로 추후 다른 설정 파일 확장이 용이. 이미 `~/.claude/` 패턴과 일관성 있음.
 
 ### D6: 대상 범위 — 목록에 표시되는 모든 세션
 - **Status**: resolved
@@ -166,20 +166,20 @@ Claude Code 세션마다 사용자가 직접 이름을 편집할 수 있다. 커
 
 ---
 
-### R4: 영속 저장 — `~/.clawde/custom-names.json` 읽기·쓰기 (D4, D5, D8)
+### R4: 영속 저장 — `~/.airuncat/custom-names.json` 읽기·쓰기 (D4, D5, D8)
 
 #### R4.1: 커스텀 이름 저장 시 JSON 파일에 쓰기
 - **Given**: sessionId "abc"에 이름 "내 작업"이 확정된 상태
 - **When**: 저장 액션이 트리거된다 (R3.1 / R3.4)
-- **Then**: `~/.clawde/custom-names.json`에 `{"abc": "내 작업", ...}` 형식으로 기록된다. 디렉토리가 없으면 생성 후 쓴다
+- **Then**: `~/.airuncat/custom-names.json`에 `{"abc": "내 작업", ...}` 형식으로 기록된다. 디렉토리가 없으면 생성 후 쓴다
 
 #### R4.2: 앱 시작 시 JSON 파일 로드
-- **Given**: `~/.clawde/custom-names.json`에 `{"abc": "내 작업"}`이 저장된 상태
+- **Given**: `~/.airuncat/custom-names.json`에 `{"abc": "내 작업"}`이 저장된 상태
 - **When**: SessionStore가 초기화된다
 - **Then**: customNames 딕셔너리에 `["abc": "내 작업"]`이 로드되어 세션 표시에 즉시 반영된다
 
 #### R4.3: 파일 없거나 JSON 파싱 실패 시 빈 사전으로 초기화
-- **Given**: `~/.clawde/custom-names.json`이 존재하지 않거나 손상됨
+- **Given**: `~/.airuncat/custom-names.json`이 존재하지 않거나 손상됨
 - **When**: SessionStore가 초기화된다
 - **Then**: customNames는 `[:]`로 초기화되고 앱은 정상 동작. 커스텀 이름 없이 aiTitle이 표시된다
 
@@ -195,7 +195,7 @@ Claude Code 세션마다 사용자가 직접 이름을 편집할 수 있다. 커
 #### R5.2: 이름 붙인 세션의 JSONL이 삭제돼도 커스텀 이름 엔트리는 파일에 유지
 - **Given**: sessionId "abc"에 커스텀 이름이 저장된 상태에서 JSONL 파일이 삭제됨
 - **When**: 앱이 재시작되거나 스캔이 실행된다
-- **Then**: `~/.clawde/custom-names.json`의 "abc" 엔트리는 그대로 유지된다
+- **Then**: `~/.airuncat/custom-names.json`의 "abc" 엔트리는 그대로 유지된다
 
 #### R5.3: 고아 엔트리의 세션이 다시 나타나면 커스텀 이름 자동 복원
 - **Given**: sessionId "abc"의 JSONL이 삭제됐다가 다시 생성됨. custom-names.json에 "abc" 엔트리 존재
@@ -207,14 +207,14 @@ Claude Code 세션마다 사용자가 직접 이름을 편집할 수 있다. 커
 ### T1: CustomNameStore 구현 — JSON 읽기·쓰기 영속 레이어 [infra]
 - **Fulfills**: R4.1, R4.2, R4.3
 - **Depends on**: (none)
-- **Files**: `Sources/Clawde/CustomNameStore.swift` (신규)
-- `~/.clawde/` 디렉토리 자동 생성, `custom-names.json` 읽기/쓰기
+- **Files**: `Sources/airuncat/CustomNameStore.swift` (신규)
+- `~/.airuncat/` 디렉토리 자동 생성, `custom-names.json` 읽기/쓰기
 - 파싱 실패(파일 없음, 손상) 시 `[:]` fallback
 
 ### T2: SessionInfo + SessionStore에 customName 통합 [vertical]
 - **Fulfills**: R0.2, R2.1, R2.2, R5.2, R5.3
 - **Depends on**: T1
-- **Files**: `Sources/Clawde/SessionScanner.swift`, `Sources/Clawde/SessionStore.swift`
+- **Files**: `Sources/airuncat/SessionScanner.swift`, `Sources/airuncat/SessionStore.swift`
 - `SessionInfo`에 `var customName: String?` 추가
 - `SessionStore`에 CustomNameStore 연동 + `setCustomName(sessionId:name:)` 메서드
 - 스캔 시 customNames 딕셔너리에서 각 세션의 customName 주입
@@ -222,7 +222,7 @@ Claude Code 세션마다 사용자가 직접 이름을 편집할 수 있다. 커
 ### T3: SessionRow 편집 UI 전체 구현 [vertical]
 - **Fulfills**: R0.1, R1.1, R1.2, R1.3, R2.3, R3.1, R3.2, R3.3, R3.4, R5.1
 - **Depends on**: T2
-- **Files**: `Sources/Clawde/MenuContentView.swift`
+- **Files**: `Sources/airuncat/MenuContentView.swift`
 - `@State var isEditing`, `@State var draftName` 추가
 - 더블클릭 `onTapGesture(count:2)` 진입 구현; 검증 실패 시 hover 연필 아이콘으로 교체
 - Enter(onSubmit): `SessionStore.setCustomName` 호출 + `isEditing = false`

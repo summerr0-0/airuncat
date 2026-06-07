@@ -4,7 +4,7 @@ enum CustomNameStore {
 
     static var storeURL: URL {
         FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".clawde/custom-names.json")
+            .appendingPathComponent(".airuncat/custom-names.json")
     }
 
     static func load() -> [String: String] {

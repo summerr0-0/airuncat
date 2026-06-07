@@ -1,0 +1,6 @@
+.build/
+Clawde.app/
+*.swiftpm
+.DS_Store
+.omc/
+.claude/settings.local.json

@@ -1,0 +1,40 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "file=$(echo '$TOOL_INPUT' | jq -r '.file_path // empty'); if [[ \"$file\" == *.swift ]]; then cd /Users/jeong-ilin/study/clawde && swift build 2>&1 | tail -20; fi"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "file=$(echo '$TOOL_INPUT' | jq -r '.file_path // empty'); if [[ \"$file\" == *\"/.build/\"* || \"$file\" == *\"/Clawde.app/\"* ]]; then echo 'BLOCKED: build artifact. Edit Sources/ instead.'; exit 1; fi"
+          },
+          {
+            "type": "command",
+            "command": "file=$(echo '$TOOL_INPUT' | jq -r '.file_path // empty'); if [[ \"$file\" == *\"/.claude/projects/\"*.jsonl ]]; then echo 'BLOCKED: session logs are read-only.'; exit 1; fi"
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(swift *)",
+      "Bash(./build.sh)",
+      "Bash(git *)",
+      "Bash(open *)",
+      "Bash(codesign *)",
+      "Bash(pkill *)"
+    ]
+  }
+}

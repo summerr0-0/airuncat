@@ -1,0 +1,85 @@
+import SwiftUI
+import AppKit
+
+@MainActor
+final class SessionStore: ObservableObject {
+    @Published var sessions: [SessionInfo] = []
+    @Published var catImage: NSImage = CatRenderer.image(phase: 0, mode: .sleeping)
+    @Published private var liveCwds: Set<String> = []
+
+    private var cache: [String: (mtime: Date, info: SessionInfo)] = [:]
+    private var phase: Double = 0
+    private var animTimer: Timer?
+    private var scanTimer: Timer?
+
+    private let scanInterval: TimeInterval = 3.0
+    private let animInterval: TimeInterval = 0.07
+
+    init() {
+        refresh()
+        startScanning()
+        startAnimating()
+    }
+
+    /// Open a session: focus its existing iTerm tab, else open a new one.
+    func resume(_ session: SessionInfo) {
+        ITermController.open(session)
+    }
+
+    var activeCount: Int { visibleSessions.filter { if case .active = $0.status { return true }; return false }.count }
+    var idleCount: Int { visibleSessions.filter { if case .idle = $0.status { return true }; return false }.count }
+
+    /// Most recent session per live-process cwd, newest first.
+    var visibleSessions: [SessionInfo] {
+        let slash = CharacterSet(charactersIn: "/")
+        let normalizedLive = Set(liveCwds.map { $0.trimmingCharacters(in: slash) })
+        var seen = Set<String>()
+        var result: [SessionInfo] = []
+        for session in sessions { // sorted newest-first
+            let cwd = session.cwd.trimmingCharacters(in: slash)
+            guard normalizedLive.contains(cwd), !seen.contains(cwd) else { continue }
+            seen.insert(cwd)
+            result.append(session)
+        }
+        return result
+    }
+
+    func refresh() {
+        var localCache = cache
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let found = SessionScanner.scan(cache: &localCache)
+            let detected = ProcessDetector.liveCwds()
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.cache = localCache
+                self.sessions = found
+                self.liveCwds = detected
+            }
+        }
+    }
+
+    private func startScanning() {
+        scanTimer = Timer.scheduledTimer(withTimeInterval: scanInterval, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.refresh() }
+        }
+    }
+
+    private func startAnimating() {
+        animTimer = Timer.scheduledTimer(withTimeInterval: animInterval, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.tick() }
+        }
+    }
+
+    private func tick() {
+        let busy = activeCount
+        let mode: CatMode = busy > 0 ? .running(busy) : .sleeping
+        // More busy sessions -> faster gait. Sleeping cat breathes slowly.
+        let step: Double
+        switch mode {
+        case .running(let n): step = 0.28 + 0.16 * Double(min(n, 4))
+        case .sleeping:       step = 0.05
+        }
+        phase += step
+        catImage = CatRenderer.image(phase: phase, mode: mode)
+    }
+}

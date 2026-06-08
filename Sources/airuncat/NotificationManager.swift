@@ -4,7 +4,6 @@ import AppKit
 @MainActor
 final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     static let shared = NotificationManager()
-    weak var sessionStore: SessionStore?
 
     private override init() {
         super.init()
@@ -21,7 +20,8 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         content.title = session.displayName.isEmpty ? "Unnamed Session" : session.displayName
         content.body = "입력 대기 중"
         content.sound = .default
-        content.userInfo = ["sessionId": session.sessionId]
+        // Store cwd so delegate can open iTerm without needing SessionStore
+        content.userInfo = ["sessionId": session.sessionId, "cwd": session.cwd]
 
         let request = UNNotificationRequest(
             identifier: "idle-\(session.sessionId)",
@@ -32,8 +32,9 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     }
 
     func dismissIdleNotification(for sessionId: String) {
-        UNUserNotificationCenter.current()
-            .removeDeliveredNotifications(withIdentifiers: ["idle-\(sessionId)"])
+        let id = "idle-\(sessionId)"
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [id])
+        UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: [id])
     }
 
     // MARK: - UNUserNotificationCenterDelegate
@@ -43,14 +44,23 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
-        let sessionId = response.notification.request.content.userInfo["sessionId"] as? String
+        let info = response.notification.request.content.userInfo
+        let sessionId = info["sessionId"] as? String
+        let cwd = info["cwd"] as? String ?? ""
+
         Task { @MainActor in
-            if let id = sessionId,
-               let session = self.sessionStore?.sessions.first(where: { $0.sessionId == id }) {
-                ITermController.open(session)
+            if let id = sessionId {
+                // Construct minimal stub — ITermController only needs sessionId + cwd
+                let stub = SessionInfo(
+                    id: id, sessionId: id, title: "", customName: nil,
+                    projectName: "", cwd: cwd, gitBranch: "",
+                    firstInstruction: "", toolName: "", toolDetail: "",
+                    lastActivity: Date(), messageCount: 0, category: .dev
+                )
+                ITermController.open(stub)
             }
+            completionHandler()
         }
-        completionHandler()
     }
 
     nonisolated func userNotificationCenter(

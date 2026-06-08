@@ -10,16 +10,19 @@ Swift 6.3 | SwiftUI MenuBarExtra | AppKit (벡터 고양이 드로잉) | SwiftPM
 
 ```
 Sources/airuncat/
-  AiruncatApp.swift     앱 진입점, MenuBarExtra scene, 디버그 렌더(--render-frames)
-  SessionStore.swift    @MainActor ObservableObject, 스캔/애니메이션 타이머
-  SessionScanner.swift  ~/.claude/projects/*/*.jsonl 파싱 (mtime 캐시)
-  CatRenderer.swift     벡터 고양이 프레임 (질주/수면, 템플릿 이미지)
-  ITermController.swift iTerm2 탭 포커스 / 새 탭으로 세션 이동 (AppleScript)
-  MenuContentView.swift 드롭다운 세션 목록 UI
-build.sh                swift build -c release + .app 번들 조립 + ad-hoc sign
-Info.plist              LSUIElement 메뉴바 상주 앱 정의
-.claude/rules/          강제 제약
-docs/                   데이터 소스 / 설계 상세
+  AiruncatApp.swift        앱 진입점, MenuBarExtra scene, 디버그 렌더(--render-frames)
+  SessionStore.swift       @MainActor ObservableObject, 스캔/애니메이션/idle 전환 감지
+  SessionScanner.swift     ~/.claude/projects/*/*.jsonl 파싱 (mtime 캐시)
+  CatRenderer.swift        벡터 고양이 프레임 (질주/수면, 템플릿 이미지)
+  ITermController.swift    iTerm2 탭 포커스 / 새 탭으로 세션 이동 (AppleScript)
+  MenuContentView.swift    드롭다운 세션 목록 UI (필터 바, 태그 칩, NSPopover)
+  TagStore.swift           태그 영속 (DJB2 색상, 300ms 디바운스 저장)
+  NotificationManager.swift UNUserNotificationCenter 래퍼 — idle 알림 발송/클릭 핸들러
+build.sh                   swift build -c release + .app 번들 조립 + ad-hoc sign
+Info.plist                 LSUIElement 메뉴바 상주 앱 정의
+.claude/rules/             강제 제약
+docs/                      데이터 소스 / 설계 상세
+specs/                     피처별 스펙 문서
 ```
 
 ## Active Rules

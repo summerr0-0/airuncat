@@ -88,19 +88,29 @@ final class SessionStore: ObservableObject {
             guard case .active = s.status else { return nil }
             return s.sessionId
         })
+        let currentSessionIds = Set(visibleSessions.map { $0.sessionId })
 
         defer { prevActiveIds = currentActiveIds }
 
         guard !isFirstScan else { isFirstScan = false; return }
 
         for session in visibleSessions {
-            if case .active = session.status {
-                // 다시 active → 이전 idle 알림 제거
-                NotificationManager.shared.dismissIdleNotification(for: session.sessionId)
-            } else if prevActiveIds.contains(session.sessionId) {
-                // active → idle/resting 전환 → 알림 발송
+            let isNowActive: Bool
+            if case .active = session.status { isNowActive = true } else { isNowActive = false }
+            let wasActive = prevActiveIds.contains(session.sessionId)
+
+            if wasActive && !isNowActive {
+                // active → idle/resting: 알림 발송
                 NotificationManager.shared.sendIdleNotification(for: session)
+            } else if !wasActive && isNowActive {
+                // idle/resting → active: 이전 알림 제거 (상태 전환 시에만)
+                NotificationManager.shared.dismissIdleNotification(for: session.sessionId)
             }
+        }
+
+        // active였다가 visibleSessions에서 사라진 세션(프로세스 종료) → ghost 알림 제거
+        for id in prevActiveIds where !currentSessionIds.contains(id) {
+            NotificationManager.shared.dismissIdleNotification(for: id)
         }
     }
 

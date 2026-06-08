@@ -21,7 +21,6 @@ struct AiruncatApp: App {
     var body: some Scene {
         MenuBarExtra {
             MenuContentView(store: store, tagStore: store.tagStore)
-                .task { NotificationManager.shared.sessionStore = store }
         } label: {
             Image(nsImage: store.catImage)
         }

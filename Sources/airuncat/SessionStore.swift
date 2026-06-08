@@ -7,6 +7,8 @@ final class SessionStore: ObservableObject {
     @Published var catImage: NSImage = CatRenderer.image(phase: 0, mode: .sleeping)
     @Published private var liveCwds: Set<String> = []
 
+    let tagStore = TagStore()
+
     private var cache: [String: (mtime: Date, info: SessionInfo)] = [:]
     private var customNames: [String: String] = CustomNameStore.load()
     private var phase: Double = 0

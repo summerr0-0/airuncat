@@ -1,21 +1,37 @@
 import SwiftUI
 import AppKit
 
+// MARK: - Filter Mode
+
+private enum FilterMode: Equatable {
+    case all, untagged
+    case tag(String)
+}
+
+// MARK: - Main View
+
 struct MenuContentView: View {
     @ObservedObject var store: SessionStore
+    @ObservedObject var tagStore: TagStore
+    @State private var filter: FilterMode = .all
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
             Divider()
-            if store.visibleSessions.isEmpty {
+            if !usedTags.isEmpty {
+                filterBar
+                Divider()
+            }
+            if filteredSessions.isEmpty {
                 emptyState
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
-                        ForEach(store.visibleSessions) { session in
+                        ForEach(filteredSessions) { session in
                             SessionRow(
                                 session: session,
+                                tagStore: tagStore,
                                 onTap: { store.resume(session) },
                                 onRename: { name in store.setCustomName(sessionId: session.sessionId, name: name) }
                             )
@@ -29,7 +45,14 @@ struct MenuContentView: View {
             footer
         }
         .frame(width: 320)
+        .onChange(of: tagStore.sessionTags) { _ in
+            if case .tag(let t) = filter, !usedTags.contains(t) {
+                filter = .all
+            }
+        }
     }
+
+    // MARK: - Subviews
 
     private var header: some View {
         HStack(spacing: 8) {
@@ -44,15 +67,23 @@ struct MenuContentView: View {
         .padding(.vertical, 8)
     }
 
-    private var summary: String {
-        let a = store.activeCount, i = store.idleCount
-        if a == 0 && i == 0 { return "all quiet" }
-        return "\(a) active · \(i) idle"
+    private var filterBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 4) {
+                FilterChip("All", active: filter == .all) { filter = .all }
+                FilterChip("Untagged", active: filter == .untagged) { filter = .untagged }
+                ForEach(usedTags, id: \.self) { tag in
+                    FilterChip(tag, active: filter == .tag(tag)) { filter = .tag(tag) }
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+        }
     }
 
     private var emptyState: some View {
         VStack(spacing: 4) {
-            Text("No recent sessions")
+            Text("No sessions")
                 .font(.system(size: 12))
                 .foregroundColor(.secondary)
             Text("The cat naps until Claude gets to work.")
@@ -78,12 +109,83 @@ struct MenuContentView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
     }
+
+    // MARK: - Computed
+
+    private var summary: String {
+        let a = store.activeCount, i = store.idleCount
+        if a == 0 && i == 0 { return "all quiet" }
+        return "\(a) active · \(i) idle"
+    }
+
+    private var usedTags: [String] {
+        var seen = Set<String>()
+        var result: [String] = []
+        for s in store.visibleSessions {
+            for tag in tagStore.tags(for: s.sessionId) where seen.insert(tag).inserted {
+                result.append(tag)
+            }
+        }
+        return result
+    }
+
+    private var filteredSessions: [SessionInfo] {
+        switch filter {
+        case .all:        return store.visibleSessions
+        case .untagged:   return store.visibleSessions.filter { tagStore.tags(for: $0.sessionId).isEmpty }
+        case .tag(let t): return store.visibleSessions.filter { tagStore.tags(for: $0.sessionId).contains(t) }
+        }
+    }
+}
+
+// MARK: - Tag Color
+
+private let tagPalette: [Color] = [
+    .blue, .green, .orange, .purple, .red, .teal, .pink, .indigo
+]
+
+// DJB2: stable across launches (unlike hashValue which is randomized per process)
+private func tagColor(_ tag: String) -> Color {
+    var h: UInt32 = 5381
+    for byte in tag.utf8 { h = h &* 31 &+ UInt32(byte) }
+    return tagPalette[Int(h) % tagPalette.count]
+}
+
+private let tagIconEmpty  = NSImage(systemSymbolName: "tag",      accessibilityDescription: nil)!
+private let tagIconFilled = NSImage(systemSymbolName: "tag.fill", accessibilityDescription: nil)!
+
+// MARK: - Filter Chip
+
+private struct FilterChip: View {
+    let label: String
+    let active: Bool
+    let action: () -> Void
+
+    init(_ label: String, active: Bool, action: @escaping () -> Void) {
+        self.label = label
+        self.active = active
+        self.action = action
+    }
+
+    var body: some View {
+        Button(action: action) {
+            Text(label)
+                .font(.system(size: 10, weight: active ? .semibold : .regular))
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(active ? Color.accentColor.opacity(0.2) : Color.primary.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 4))
+                .foregroundColor(active ? .accentColor : .primary)
+        }
+        .buttonStyle(.plain)
+    }
 }
 
 // MARK: - Session Row
 
 private struct SessionRow: View {
     let session: SessionInfo
+    @ObservedObject var tagStore: TagStore
     let onTap: () -> Void
     let onRename: (String) -> Void
 
@@ -110,10 +212,12 @@ private struct SessionRow: View {
 
             Spacer(minLength: 4)
 
-            VStack(alignment: .trailing, spacing: 2) {
+            VStack(alignment: .trailing, spacing: 4) {
                 Text(relativeTime)
                     .font(.system(size: 10))
                     .foregroundColor(.secondary)
+                TagButton(sessionId: session.sessionId, tagStore: tagStore)
+                    .frame(width: 14, height: 14)
                 if hovering && !isEditing {
                     Text("resume")
                         .font(.system(size: 9, weight: .semibold))
@@ -157,7 +261,17 @@ private struct SessionRow: View {
             Text(session.projectName)
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundColor(.secondary)
-            categoryTag
+            ForEach(tagStore.tags(for: session.sessionId), id: \.self) { tag in
+                Text(tag)
+                    .font(.system(size: 9, weight: .semibold))
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1)
+                    .background(
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(tagColor(tag).opacity(0.18))
+                    )
+                    .foregroundColor(tagColor(tag))
+            }
             if !session.gitBranch.isEmpty {
                 Text(session.gitBranch)
                     .font(.system(size: 10))
@@ -170,18 +284,6 @@ private struct SessionRow: View {
     private var activity: String {
         guard !session.toolName.isEmpty else { return "" }
         return session.toolDetail.isEmpty ? session.toolName : "\(session.toolName): \(session.toolDetail)"
-    }
-
-    private var categoryTag: some View {
-        Text(session.category.rawValue)
-            .font(.system(size: 9, weight: .semibold))
-            .padding(.horizontal, 4)
-            .padding(.vertical, 1)
-            .background(
-                RoundedRectangle(cornerRadius: 3)
-                    .fill(session.category == .dev ? Color.blue.opacity(0.18) : Color.purple.opacity(0.18))
-            )
-            .foregroundColor(session.category == .dev ? .blue : .purple)
     }
 
     private var statusColor: Color {
@@ -201,7 +303,197 @@ private struct SessionRow: View {
     }
 }
 
-// MARK: - Inline name editor (NSTextField wrapper for Enter/Escape support on macOS 13+)
+// MARK: - Tag Button (NSPopover)
+
+private struct TagButton: NSViewRepresentable {
+    let sessionId: String
+    @ObservedObject var tagStore: TagStore
+
+    func makeNSView(context: Context) -> NSButton {
+        let btn = NSButton()
+        btn.bezelStyle = .inline
+        btn.isBordered = false
+        btn.setButtonType(.momentaryLight)
+        btn.target = context.coordinator
+        btn.action = #selector(Coordinator.tapped(_:))
+        applyImage(to: btn)
+        return btn
+    }
+
+    func updateNSView(_ btn: NSButton, context: Context) {
+        applyImage(to: btn)
+        context.coordinator.sessionId = sessionId
+    }
+
+    private func applyImage(to btn: NSButton) {
+        let tags = tagStore.tags(for: sessionId)
+        if tags.isEmpty {
+            btn.image = tagIconEmpty
+            btn.contentTintColor = .tertiaryLabelColor
+        } else {
+            btn.image = tagIconFilled
+            btn.contentTintColor = NSColor(tagColor(tags[0]))
+        }
+        btn.title = ""
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(sessionId: sessionId, tagStore: tagStore)
+    }
+
+    @MainActor
+    final class Coordinator: NSObject {
+        var sessionId: String
+        var tagStore: TagStore
+        private var popover: NSPopover?
+
+        init(sessionId: String, tagStore: TagStore) {
+            self.sessionId = sessionId
+            self.tagStore = tagStore
+            super.init()
+        }
+
+        @objc func tapped(_ sender: NSButton) {
+            if let p = popover, p.isShown { p.close(); return }
+            let p = NSPopover()
+            p.behavior = .transient
+            let vc = NSHostingController(
+                rootView: TagPopoverView(sessionId: sessionId, tagStore: tagStore)
+            )
+            p.contentViewController = vc
+            p.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)
+            self.popover = p
+        }
+    }
+}
+
+// MARK: - Tag Popover
+
+private struct TagPopoverView: View {
+    let sessionId: String
+    @ObservedObject var tagStore: TagStore
+    @State private var newTag = ""
+    @State private var editingTag: String? = nil
+    @State private var editText = ""
+
+    private var selected: Set<String> { Set(tagStore.tags(for: sessionId)) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(tagStore.tagPool, id: \.self) { tag in
+                        tagRow(tag)
+                    }
+                }
+            }
+            .frame(maxHeight: 160)
+
+            Divider()
+
+            HStack(spacing: 4) {
+                Text("+")
+                    .foregroundColor(.secondary)
+                    .font(.system(size: 11))
+                TextField("new tag", text: $newTag)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 11))
+                    .onSubmit {
+                        tagStore.addTag(newTag, to: sessionId)
+                        newTag = ""
+                    }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+        }
+        .frame(width: 200)
+    }
+
+    @ViewBuilder
+    private func tagRow(_ tag: String) -> some View {
+        let isSelected = selected.contains(tag)
+        TagRowView(
+            tag: tag,
+            isSelected: isSelected,
+            isEditing: editingTag == tag,
+            editText: editingTag == tag ? $editText : .constant(""),
+            onToggle: { toggleTag(tag) },
+            onBeginEdit: { editingTag = tag; editText = tag },
+            onCommitEdit: { commitRename(tag) }
+        )
+    }
+
+    private func toggleTag(_ tag: String) {
+        if selected.contains(tag) {
+            tagStore.removeTag(tag, from: sessionId)
+        } else {
+            tagStore.addTag(tag, to: sessionId)
+        }
+    }
+
+    private func commitRename(_ old: String) {
+        tagStore.renameTag(old, to: editText)
+        editingTag = nil
+        editText = ""
+    }
+}
+
+// MARK: - Tag Row
+
+private struct TagRowView: View {
+    let tag: String
+    let isSelected: Bool
+    let isEditing: Bool
+    @Binding var editText: String
+    let onToggle: () -> Void
+    let onBeginEdit: () -> Void
+    let onCommitEdit: () -> Void
+
+    @State private var hovering = false
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if isEditing {
+                TextField("", text: $editText)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 11))
+                    .onSubmit { onCommitEdit() }
+                Spacer()
+                Button(action: onCommitEdit) {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(.accentColor)
+                }
+                .buttonStyle(.plain)
+            } else {
+                Text(tag)
+                    .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
+                    .foregroundColor(isSelected ? tagColor(tag) : .primary)
+                Spacer()
+                if hovering {
+                    Button(action: onBeginEdit) {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 9))
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(
+            isSelected
+                ? tagColor(tag).opacity(0.12)
+                : (hovering ? Color.primary.opacity(0.05) : Color.clear)
+        )
+        .contentShape(Rectangle())
+        .onTapGesture { if !isEditing { onToggle() } }
+        .onHover { hovering = $0 }
+    }
+}
+
+// MARK: - Inline Name Field
 
 private struct InlineNameField: NSViewRepresentable {
     let initialText: String
@@ -218,7 +510,6 @@ private struct InlineNameField: NSViewRepresentable {
         field.font = .systemFont(ofSize: 12, weight: .medium)
         field.textColor = .labelColor
         field.cell?.sendsActionOnEndEditing = false
-        // Defer first responder assignment until the view is in the window hierarchy.
         DispatchQueue.main.async {
             field.window?.makeFirstResponder(field)
         }
@@ -249,7 +540,6 @@ private struct InlineNameField: NSViewRepresentable {
             return false
         }
 
-        // Fired when the field loses focus (window dismissed, tab, etc.).
         func controlTextDidEndEditing(_ obj: Notification) {
             guard !handled else { return }
             handled = true

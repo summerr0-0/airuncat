@@ -19,7 +19,7 @@ struct AiruncatApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            MenuContentView(store: store)
+            MenuContentView(store: store, tagStore: store.tagStore)
         } label: {
             Image(nsImage: store.catImage)
         }

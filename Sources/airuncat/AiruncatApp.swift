@@ -6,6 +6,7 @@ struct AiruncatApp: App {
     @StateObject private var store = SessionStore()
 
     init() {
+        NotificationManager.shared.requestPermission()
         // Debug path: `airuncat --render-frames [outPath]` dumps a contact sheet and exits.
         let args = CommandLine.arguments
         if let idx = args.firstIndex(of: "--render-frames") {
@@ -20,6 +21,7 @@ struct AiruncatApp: App {
     var body: some Scene {
         MenuBarExtra {
             MenuContentView(store: store, tagStore: store.tagStore)
+                .task { NotificationManager.shared.sessionStore = store }
         } label: {
             Image(nsImage: store.catImage)
         }

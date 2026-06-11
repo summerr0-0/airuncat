@@ -11,12 +11,15 @@ Swift 6.3 | SwiftUI MenuBarExtra | AppKit (벡터 고양이 드로잉) | SwiftPM
 ```
 Sources/airuncat/
   AiruncatApp.swift        앱 진입점, MenuBarExtra scene, 디버그 렌더(--render-frames)
-  SessionStore.swift       @MainActor ObservableObject, 스캔/애니메이션/idle 전환 감지
-  SessionScanner.swift     ~/.claude/projects/*/*.jsonl 파싱 (mtime 캐시)
-  CatRenderer.swift        벡터 고양이 프레임 (질주/수면, 템플릿 이미지)
+  SessionStore.swift       @MainActor ObservableObject, 스캔/애니메이션/idle·closed 감지
+  SessionScanner.swift     ~/.claude/projects/*/*.jsonl 파싱 (mtime 캐시, WorkState 판정)
+  GeminiScanner.swift      ~/.gemini/tmp/*/chats/*.jsonl 파싱 (maxAge 48h)
+  CatRenderer.swift        벡터 고양이 프레임 (질주/수면, 좌향, 대기 버블 배지)
   ITermController.swift    iTerm2 탭 포커스 / 새 탭으로 세션 이동 (AppleScript)
-  MenuContentView.swift    드롭다운 세션 목록 UI (필터 바, 태그 칩, NSPopover)
+  MenuContentView.swift    드롭다운 세션 목록 UI (C/G 배지, Recently Closed, 필터 바)
+  ProcessDetector.swift    live claude/gemini 프로세스 cwd 탐지 (ps + lsof)
   TagStore.swift           태그 영속 (DJB2 색상, 300ms 디바운스 저장)
+  CustomNameStore.swift    세션 커스텀 이름 영속 (~/.airuncat/custom-names.json)
   NotificationManager.swift UNUserNotificationCenter 래퍼 — idle 알림 발송/클릭 핸들러
 build.sh                   swift build -c release + .app 번들 조립 + ad-hoc sign
 Info.plist                 LSUIElement 메뉴바 상주 앱 정의
@@ -28,7 +31,7 @@ specs/                     피처별 스펙 문서
 ## Active Rules
 
 - CLT로만 빌드, xcodebuild/.xcodeproj 금지 → `.claude/rules/clt-build-only.md`
-- 메뉴바 아이콘은 항상 template image → `.claude/rules/template-image-only.md`
+- 메뉴바 아이콘은 기본 template image; 대기 버블 표시 시에만 non-template (labelColor 사용) → `.claude/rules/template-image-only.md`
 - 고양이는 벡터 드로잉, 외부 이미지 에셋 금지 → `.claude/rules/vector-cat-no-assets.md`
 - 세션 JSONL은 읽기 전용, 절대 수정 금지 → `.claude/rules/read-only-sessions.md`
 

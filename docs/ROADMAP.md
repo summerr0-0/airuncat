@@ -5,21 +5,45 @@
 
 - 컨셉: AI가 바쁠수록 고양이가 빨리 뛰고, 다 쉬면 앉아서 존다 (RunCat 영감)
 
-## 현재 상태 (v0.1)
+## 현재 상태 (v0.2)
 
 - Swift / SwiftUI MenuBarExtra 앱, Command Line Tools만으로 빌드 (`build.sh`)
-- 세션 모니터: `~/.claude/projects/*/*.jsonl` 파싱 -> 제목/프로젝트/지금 하는 일/경과시간
-- 애니메이션 고양이: 활성 세션 수에 따라 질주 속도 변화, 유휴 시 수면
-- 클릭 -> 세션 이동: iTerm2 탭 포커스 (cwd 매칭), 없으면 새 탭에서 `claude -r`
-  - 메커니즘 검증 완료. 남은 것: iTerm 자동화 권한 1회 허용 후 최종 클릭 확인
+- 세션 모니터: Claude + Gemini CLI 세션 통합 관제 (AIKind 배지, live process 필터)
+- WorkState 판정: JSONL 마지막 이벤트 기반 working/responded 구분, statusBar 색상 연동
+- 대기 버블: 응답 대기 세션 있으면 고양이 아이콘에 red 배지 표시 (non-template)
+- Recently Closed: 세션 종료 후 30초간 드롭다운 하단 표시, 클릭 시 재개
+- 세션 이동: iTerm2 탭 포커스 (cwd prefix 매칭), 없으면 새 탭 (`claude -r` / `gemini`)
+- 로그인 자동 시작 LaunchAgent, 자체 서명 인증서 (재빌드해도 접근성 권한 유지)
+- 세션 커스텀 이름 (인라인 편집), 수동 태그/필터, idle 알림
 - 하네스 일습 완비 (CLAUDE.md, AGENTS.md, rules, skills, settings.json, docs)
+
+## 목표: OMC(oh-my-claudecode) 대체
+
+OMC는 Claude 세션 **내부**에서 CLAUDE.md 주입 + hooks + skills로 동작한다.
+airuncat은 세션 **외부**의 컨트롤 플레인으로, OMC가 하는 일을 GUI로 관리·대체한다.
+
+| OMC 기능 | 대체 방식 | 담당 Phase |
+|---------|---------|-----------|
+| 세션 모니터링 | Session Monitor (이미 앞서 있음) | Phase 0-1 완료 |
+| Skills 등록/링크 관리 | Skills Manager GUI | Phase 2 |
+| Harness 설정 (rules, hooks, settings.json) | Harness Manager GUI | Phase 2.5 |
+| 프롬프트/스킬 빠른 실행 | Prompt Library | Phase 3 |
+| 멀티 에이전트 오케스트레이션 | Spawning (앱이 직접 Claude CLI 실행) | Phase 5 |
+| Claude/Gemini 통합 관제 | Unified Control | Phase 4 |
+
+**오케스트레이션 전략 (Phase 5 이전 결정 필요):**
+- 전략 A (현실적): 오케스트레이션 로직은 CLAUDE.md에 유지, airuncat이 그 설정을 GUI로 관리.
+- 전략 B (장기): airuncat이 `claude -p "..."` 프로세스를 직접 spawn해서 외부에서 에이전트 지시.
+  - 단방향 실행이라 Claude가 중간에 되묻는 경우 처리가 복잡함. Phase 5로 미룸.
 
 ## 핵심 기둥 (Pillars)
 
 1. Session Monitor — 병렬 AI 작업 실시간 관제 (Claude + Gemini)
 2. Skills Manager — `SKILL_*.md` <-> `~/.claude/commands`, `~/.gemini/commands` 링크 관리, 중복/고아 탐지, on/off
-3. Prompt Library — 재사용 프롬프트 저장/분류/빠른 삽입
-4. Unified Control — Claude / Gemini 양쪽 통합 뷰 및 동기화
+3. Harness Manager — rules, hooks, settings.json, CLAUDE.md per-project 설정 관리
+4. Prompt Library — 재사용 프롬프트 저장/분류/빠른 삽입
+5. Unified Control — Claude / Gemini 양쪽 통합 뷰 및 동기화
+6. Spawning (장기) — airuncat이 Claude CLI를 직접 실행해 에이전트 오케스트레이션
 
 ## 개발 워크플로우
 
@@ -34,32 +58,73 @@
 - [x] 메뉴바 드롭다운 세션 목록 UI
 - [x] `.app` 번들 빌드 스크립트 + 자체 서명 인증서(권한 영속)
 
-### Phase 1 — 세션 이동 / 모니터 고도화
-- [x] 클릭 -> iTerm2 탭 포커스 (cwd 매칭) + 없으면 새 탭 resume
-- [ ] 세션이 끊어져도(종료돼도) 목록에서 안 사라지는 문제 수정 — 실제 살아있는 세션만 표시/active 처리, 종료된 건 제거하거나 명확히 구분
-- [ ] iTerm 자동화 권한 허용 후 최종 동작 확인
-- [ ] 로그인 자동 시작 (LaunchAgent)
-- [ ] Gemini CLI 세션 소스 연동 (`~/.gemini/tmp/<hash>/chats/*.jsonl`)
-- [ ] 멈춤/완료 알림, 고양이 미세 튜닝
-- [ ] 세션별 커스텀 이름 붙이기 (사용자 직접 편집)
-- [ ] 세션 태그 수동 선택 (사용자가 직접 태그 할당/관리)
+### Phase 1 — 세션 이동 / 모니터 고도화 [완료]
+- [x] 클릭 -> iTerm2 탭 포커스 (cwd prefix 매칭) + 없으면 새 탭 resume
+- [x] live process 없는 세션 자동 제거 (ProcessDetector — ps + lsof)
+- [x] iTerm 자동화 권한 허용 후 최종 동작 확인
+- [x] 로그인 자동 시작 LaunchAgent (`com.jeongilin.airuncat`)
+- [x] Gemini CLI 세션 소스 연동 (`~/.gemini/tmp/<hash>/chats/*.jsonl`)
+- [x] 멈춤 알림 (active→idle 전환 시 UNUserNotification)
+- [x] 세션별 커스텀 이름 붙이기 (더블클릭 인라인 편집)
+- [x] 세션 태그 수동 선택 (TagStore, 필터 바)
+- [x] WorkState 판정 + C/G 배지 + statusBar 색상 (working=green, responded=orange)
+- [x] Recently Closed 30초 복구 버퍼
+- [x] 고양이 대기 버블 배지 (응답 대기 세션 있을 때 red badge)
+- [x] 고양이 좌향 전환 (수평 flip), 캔버스 26×18 → 32×22
+- [ ] **[백로그] Refresh 버튼 동작 안 함** — MenuBarExtra 컨텍스트 버튼 탭 미전달 추정
 
-### Phase 2 — Skills Manager
-- [ ] `06_AI_Config/SKILL_*.md` 스캔 + claude/gemini 링크 상태 매핑
-- [ ] 깨진 링크/중복/고아 탐지, on/off 토글
-- [ ] 새 스킬 생성 시 양쪽 자동 링크
+### Phase 1.5 — 세션 행 표시 개선 [백로그]
+- [ ] **커스텀 이름**: 사용자가 지정한 이름 (수정 가능, 디폴트 폴더명) — 현재 구현됨, 표시 위치/우선순위 재검토
+- [ ] **최근 질문 표시**: 사용자가 마지막으로 입력한 메시지를 행에 표시 (현재 tool activity만 표시)
+- [x] **활성 스킬 표시**: 세션 행에 현재 실행 중인 스킬 이름 표시.
+  - JSONL backward pass에서 `Skill` tool_use 탐지, `tool_result` 미존재 시 실행 중 판정.
+  - `SessionInfo.activeSkill: String?` 추가. 세션 행에 `"/skill-name"` (accentColor monospaced) 표시.
+- [ ] **진행 상황 (터미널 최근 줄)**: 해당 세션 tty의 마지막 stdout 라인 표시.
+  - `lsof` tty 매핑은 이미 있음 (`ITermController.cwdsForTTY`). tty를 통해 pty output 읽는 방법 검토.
+  - 부하/복잡도가 크면 생략. 우선순위 낮음.
+
+### Phase 2 — Skills Manager [OMC 대체 핵심 #1]
+OMC의 skills 레지스트리 + 링크 관리를 GUI로 대체한다.
+- [ ] `06_AI_Config/SKILL_*.md` 전체 스캔 + 파싱 (frontmatter: name, description, type)
+- [ ] `~/.claude/commands/`, `~/.gemini/commands/` 링크 상태 매핑 (정상 / 깨진 링크 / 고아)
+- [ ] 스킬 on/off 토글 — off = symlink 제거, on = symlink 재생성 (`ln -sf`)
+- [ ] 깨진 링크/중복/고아 탐지 + 배지 표시 + 원클릭 수리
+- [ ] 새 스킬 생성 시 양쪽 자동 링크 (Obsidian 경로 → claude + gemini 동시)
+- [ ] 스킬 목록 드롭다운 패널 (메뉴바에서 접근, 검색 필터)
+
+### Phase 2.5 — Harness Manager [OMC 대체 핵심 #2]
+OMC가 CLAUDE.md 주입으로 강제하는 설정들을 GUI로 관리한다.
+- [ ] 프로젝트별 `.claude/rules/` 파일 목록 조회 + 내용 미리보기
+- [ ] `settings.json` hooks 목록 조회 (PreToolUse/PostToolUse 항목 표시)
+- [ ] hooks on/off 토글 (settings.json 직접 편집)
+- [ ] 현재 프로젝트 CLAUDE.md 내 OMC 블록 (`<!-- OMC:START -->`) 존재 여부 표시
+- [ ] 활성 세션 행에 "적용 중인 rules 개수" 배지 표시
+- [ ] per-project 하네스 상태 요약 뷰 (rules N개 / hooks M개 / OMC 여부)
 
 ### Phase 3 — Prompt Library
-- [ ] 저장소 설계(md frontmatter), 카테고리/태그/검색, 빠른 삽입
+OMC의 스킬 기반 프롬프트 재사용을 독립 라이브러리로 대체한다.
+- [ ] 저장소 설계: md frontmatter (title, tags, category, shortcut)
+- [ ] 카테고리/태그 분류 + 검색
+- [ ] 클립보드 복사 또는 활성 세션 iTerm 탭에 직접 삽입
+- [ ] 자주 쓰는 프롬프트 핀 고정
 
-### Phase 4 — Claude / Gemini 통합
-- [ ] 통합 세션 타임라인, 스킬 동기화 상태판, 사용량 집계
+### Phase 4 — Claude / Gemini 통합 관제
+- [ ] 통합 세션 타임라인 (Claude + Gemini 이벤트 시계열)
+- [ ] 스킬 동기화 상태판 (claude 링크 vs gemini 링크 비교)
+- [ ] 모델별 사용량 집계 (세션 수, 활성 시간)
+- [ ] Gemini 세션에도 활성 스킬 표시 (Phase 1.5 동일 방식)
+
+### Phase 5 — Spawning (장기, 전략 B)
+airuncat이 직접 Claude CLI를 실행해 에이전트를 오케스트레이션한다.
+- [ ] 전략 결정: A(CLAUDE.md 관리) vs B(직접 spawn) 최종 선택
+- [ ] `Process` + `Pipe`로 `claude -p "..."` 비동기 실행
+- [ ] stdout 스트리밍을 airuncat UI에 표시
+- [ ] 중간 질문(interactive prompt) 감지 + UI에서 응답 입력
+- [ ] 작업 큐 (여러 작업 순차/병렬 실행)
 
 ## Next Action
-- [ ] iTerm2에 "airuncat이 제어" 자동화 권한 1회 허용 -> 클릭 시 탭 포커스 최종 확인
-- [ ] 앞으로 AI 세션을 iTerm2에서 운용 시작 (Warp 대신)
-- [ ] `git init` + GitHub 레포 `airuncat` 연결 (`github.com/summerr0-0/airuncat`) (PR 단계 전제)
-- [ ] Phase 2(스킬 매니저) "상세 기획"부터 워크플로우 1단계로 시작
+- [ ] `git init` + GitHub 레포 `airuncat` 연결 (`github.com/summerr0-0/airuncat`) → PR 생성
+- [ ] Phase 2(Skills Manager) "상세 기획"부터 워크플로우 1단계로 시작
 
 ## 주요 결정 / 기술 메모
 - 형태: macOS 메뉴바 앱 (SwiftUI MenuBarExtra, `LSUIElement`)

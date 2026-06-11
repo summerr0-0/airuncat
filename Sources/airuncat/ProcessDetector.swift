@@ -4,9 +4,35 @@ struct ProcessDetector {
 
     /// Returns the set of cwds that have a live `claude` process attached.
     static func liveCwds() -> Set<String> {
-        guard let pidsOut = shell("pgrep -x claude 2>/dev/null"), !pidsOut.isEmpty else {
+        cwdsForProcessName("claude")
+    }
+
+    /// Returns the set of cwds that have a live `gemini` process attached.
+    /// Gemini CLI is a Node.js script so comm shows as "node"; match by gemini binary path in args.
+    static func liveGeminiCwds() -> Set<String> {
+        guard let geminiExe = GeminiScanner.geminiPath else { return [] }
+        let safe = shellEscapeSingle(geminiExe)
+        guard let pidsOut = shell(
+            // -F: fixed-string match (no regex); single-quote escaping handles path special chars.
+            "ps -eo pid,args | grep -F '\(safe)' | grep -v grep | awk '{print $1}' 2>/dev/null"
+        ), !pidsOut.isEmpty else { return [] }
+        return cwdsForPids(pidsOut)
+    }
+
+    private static func shellEscapeSingle(_ s: String) -> String {
+        s.replacingOccurrences(of: "'", with: "'\\''")
+    }
+
+    private static func cwdsForProcessName(_ name: String) -> Set<String> {
+        // pgrep -x misses foreground (S+) processes on macOS; use ps instead.
+        guard let pidsOut = shell("ps -eo pid,comm | awk '$2==\"\(name)\"{print $1}' 2>/dev/null"),
+              !pidsOut.isEmpty else {
             return []
         }
+        return cwdsForPids(pidsOut)
+    }
+
+    private static func cwdsForPids(_ pidsOut: String) -> Set<String> {
         let pids = pidsOut.split(separator: "\n").map(String.init).filter { !$0.isEmpty }
         var cwds = Set<String>()
         for pid in pids {

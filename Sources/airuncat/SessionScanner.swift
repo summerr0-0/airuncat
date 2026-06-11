@@ -13,9 +13,19 @@ enum SessionStatus {
     }
 }
 
+enum WorkState: Equatable {
+    case working    // Claude actively invoking tools
+    case responded  // Claude sent a text response (question or completion)
+}
+
 enum SessionCategory: String {
     case dev = "dev"
     case learn = "learn"
+}
+
+enum AIKind {
+    case claude
+    case gemini
 }
 
 struct SessionInfo: Identifiable {
@@ -27,14 +37,18 @@ struct SessionInfo: Identifiable {
     var cwd: String
     var gitBranch: String
     var firstInstruction: String
+    var lastUserMessage: String  // last user-typed message (shown when responded)
     var toolName: String        // last tool used, e.g. "Bash"
     var toolDetail: String      // summarized arg, e.g. "npx prisma migrate"
+    var activeSkill: String?    // skill name currently running (nil if none or completed)
     var lastActivity: Date
     var messageCount: Int
     var category: SessionCategory
+    var workState: WorkState
+    var aiKind: AIKind
 
     var status: SessionStatus { SessionStatus(lastActivity: lastActivity) }
-    var displayName: String { customName ?? title }
+    var displayName: String { customName ?? projectName }
 }
 
 /// Reads Claude Code session transcripts from ~/.claude/projects/*/*.jsonl
@@ -133,24 +147,104 @@ struct SessionScanner {
             }
         }
 
-        // Backward pass: most recent tool call (= what it's doing now).
+        // Backward pass: last tool call + last user message + last event role for WorkState detection.
         var toolName = ""
         var toolDetail = ""
+        var lastUserMessage = ""
+        var lastEventRole = ""       // type of the newest user/assistant event
+        var lastAssistantHasTool = false
+        var foundLastAssistant = false
+        var foundLastUser = false
+        var completedToolIds = Set<String>()  // tool_use IDs that already have a tool_result
+        var activeSkill: String? = nil
+        var foundSkillCheck = false           // true once we've examined the most recent Skill call
+
         for line in backwardLines.reversed() {
             guard let obj = json(line) else { continue }
             captureContext(obj, cwd: &cwd, branch: &gitBranch)
-            if obj["type"] as? String == "assistant",
+            let evType = obj["type"] as? String ?? ""
+            guard evType == "user" || evType == "assistant" else { continue }
+
+            if lastEventRole.isEmpty { lastEventRole = evType }
+
+            // Collect completed tool IDs from tool_result blocks in user events.
+            // Going backward, tool_results appear before their corresponding tool_use,
+            // so completedToolIds is populated before we check the Skill tool_use below.
+            if evType == "user",
                let msg = obj["message"] as? [String: Any],
-               let (name, detail) = lastToolUse(msg) {
-                toolName = name
-                toolDetail = detail
-                break
+               let arr = msg["content"] as? [[String: Any]] {
+                for block in arr where (block["type"] as? String) == "tool_result" {
+                    if let id = block["tool_use_id"] as? String { completedToolIds.insert(id) }
+                }
             }
+
+            if evType == "assistant" {
+                if !foundLastAssistant {
+                    foundLastAssistant = true
+                    if let msg = obj["message"] as? [String: Any],
+                       let (name, detail) = lastToolUse(msg) {
+                        toolName = name
+                        toolDetail = detail
+                        lastAssistantHasTool = true
+                    }
+                } else if toolName.isEmpty {
+                    // keep scanning earlier assistant events until we find a tool call
+                    if let msg = obj["message"] as? [String: Any],
+                       let (name, detail) = lastToolUse(msg) {
+                        toolName = name
+                        toolDetail = detail
+                    }
+                }
+
+                // Detect active skill: find the most recent Skill tool_use with no matching tool_result.
+                if !foundSkillCheck,
+                   let msg = obj["message"] as? [String: Any],
+                   let arr = msg["content"] as? [[String: Any]] {
+                    for block in arr.reversed() where (block["type"] as? String) == "tool_use"
+                                                   && (block["name"] as? String) == "Skill" {
+                        foundSkillCheck = true
+                        if let id = block["id"] as? String,
+                           !completedToolIds.contains(id),
+                           let input = block["input"] as? [String: Any],
+                           let skillName = input["skill"] as? String {
+                            activeSkill = skillName
+                        }
+                        break
+                    }
+                }
+            }
+
+            if !foundLastUser, evType == "user" {
+                foundLastUser = true
+                if let msg = obj["message"] as? [String: Any],
+                   let text = userText(msg) {
+                    let line1 = firstLine(text)
+                    if isRealInstruction(line1) {
+                        lastUserMessage = trim(line1, 100)
+                    }
+                }
+            }
+
+            // toolName scan continues past foundLastAssistant until a tool_use is found;
+            // tailData 512KB cap bounds the worst case.
+            if !lastEventRole.isEmpty && foundLastAssistant && foundLastUser && !toolName.isEmpty { break }
         }
 
         let project = projectName(cwd: cwd, path: path)
         if title.isEmpty { title = firstInstruction.isEmpty ? project : firstInstruction }
         let sessionId = ((path as NSString).lastPathComponent as NSString).deletingPathExtension
+
+        let sessionStatus = SessionStatus(lastActivity: mtime)
+        let workState: WorkState
+        if lastEventRole == "user" || lastAssistantHasTool {
+            workState = .working
+        } else if case .active = sessionStatus {
+            // Last JSONL event was assistant text, but file was touched within 90s →
+            // Claude is likely mid-generation (not yet written to JSONL).
+            workState = .working
+        } else {
+            workState = .responded
+        }
 
         return SessionInfo(
             id: path,
@@ -161,11 +255,15 @@ struct SessionScanner {
             cwd: cwd,
             gitBranch: gitBranch,
             firstInstruction: trim(firstInstruction, 200),
+            lastUserMessage: lastUserMessage,
             toolName: toolName,
             toolDetail: trim(toolDetail, 60),
+            activeSkill: activeSkill,
             lastActivity: mtime,
             messageCount: messageCount,
-            category: categorize(cwd: cwd, path: path)
+            category: categorize(cwd: cwd, path: path),
+            workState: workState,
+            aiKind: .claude
         )
     }
 
@@ -226,6 +324,7 @@ struct SessionScanner {
         if t.hasPrefix("<") { return false }                 // command/system wrappers
         if t.hasPrefix("Caveat:") { return false }
         if t.hasPrefix("[Request interrupted") { return false }
+        if t.hasPrefix("```") { return false }               // code block marker
         return true
     }
 

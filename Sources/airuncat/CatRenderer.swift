@@ -11,25 +11,51 @@ enum CatMode: Equatable {
 /// instead of shipping sprite assets. Template image => auto light/dark tint.
 struct CatRenderer {
 
-    static let canvas = NSSize(width: 26, height: 18)
+    // Width 32: 6pt extra on the left for the speech bubble.
+    // Height 22: fits ears fully (peaked at y≈18.6 on old 18pt canvas).
+    static let canvas = NSSize(width: 32, height: 22)
 
     /// Build one frame. `phase` advances over time; legs + tail are derived from it.
-    static func image(phase: Double, mode: CatMode) -> NSImage {
+    /// Pass `waitingBubble: true` to draw a red notification badge near the cat's head.
+    static func image(phase: Double, mode: CatMode, waitingBubble: Bool = false) -> NSImage {
         let img = NSImage(size: canvas)
         img.lockFocus()
         NSGraphicsContext.current?.imageInterpolation = .high
-        NSColor.black.setFill()
-        NSColor.black.setStroke()
+
+        // waitingBubble frames are non-template (color red), so labelColor adapts to dark/light.
+        // Normal frames stay black — isTemplate=true lets the system handle appearance.
+        if waitingBubble {
+            NSColor.labelColor.setFill()
+            NSColor.labelColor.setStroke()
+        } else {
+            NSColor.black.setFill()
+            NSColor.black.setStroke()
+        }
+
+        // Flip horizontally: cat faces left.
+        let flip = NSAffineTransform()
+        flip.translateX(by: canvas.width, yBy: 0)
+        flip.scaleX(by: -1, yBy: 1)
+        flip.concat()
 
         switch mode {
-        case .running:
-            drawRunning(phase: phase)
-        case .sleeping:
-            drawSleeping(phase: phase)
+        case .running:  drawRunning(phase: phase)
+        case .sleeping: drawSleeping(phase: phase)
+        }
+
+        if waitingBubble {
+            // Save the flipped state, apply inverse flip for screen coords, draw bubble, restore.
+            NSGraphicsContext.current?.saveGraphicsState()
+            let reset = NSAffineTransform()
+            reset.translateX(by: canvas.width, yBy: 0)
+            reset.scaleX(by: -1, yBy: 1)
+            reset.concat()
+            drawBubble()
+            NSGraphicsContext.current?.restoreGraphicsState()
         }
 
         img.unlockFocus()
-        img.isTemplate = true
+        img.isTemplate = !waitingBubble
         return img
     }
 
@@ -114,6 +140,25 @@ struct CatRenderer {
 
         // Closed eye (punched thin line)
         punch(NSRect(x: 18.6, y: 8.2, width: 2.6, height: 0.9))
+    }
+
+    // MARK: - Speech bubble
+
+    private static func drawBubble() {
+        // Red notification badge drawn in screen coords (after flip reset).
+        // Cat head (32pt canvas, after flip): actual x≈8.5-17.5.
+        let cx: Double = 28.5
+        let cy: Double = 18.0  // AppKit y=0 is canvas bottom; ears peak at ≈18.6
+        let outerR: Double = 3.2
+        let innerR: Double = 2.3
+
+        let outer = NSRect(x: cx - outerR, y: cy - outerR, width: outerR * 2, height: outerR * 2)
+        let inner = NSRect(x: cx - innerR, y: cy - innerR, width: innerR * 2, height: innerR * 2)
+
+        NSColor.white.setFill()
+        NSBezierPath(ovalIn: outer).fill()   // white border ring
+        NSColor.systemRed.setFill()
+        NSBezierPath(ovalIn: inner).fill()   // red core
     }
 
     // MARK: - Primitives

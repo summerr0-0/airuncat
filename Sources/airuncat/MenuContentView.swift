@@ -23,7 +23,7 @@ struct MenuContentView: View {
                 filterBar
                 Divider()
             }
-            if filteredSessions.isEmpty {
+            if filteredSessions.isEmpty && store.recentlyClosed.isEmpty {
                 emptyState
             } else {
                 ScrollView {
@@ -36,6 +36,9 @@ struct MenuContentView: View {
                                 onRename: { name in store.setCustomName(sessionId: session.sessionId, name: name) }
                             )
                             Divider().opacity(0.4)
+                        }
+                        if !store.recentlyClosed.isEmpty {
+                            recentlyClosedSection
                         }
                     }
                 }
@@ -78,6 +81,21 @@ struct MenuContentView: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
+        }
+    }
+
+    private var recentlyClosedSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Divider().opacity(0.4)
+            Text("Recently Closed")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 12)
+                .padding(.top, 6)
+                .padding(.bottom, 2)
+            ForEach(store.recentlyClosed, id: \.info.id) { item in
+                RecentlyClosedRow(item: item, onTap: { store.resumeClosed(item.info) })
+            }
         }
     }
 
@@ -194,15 +212,35 @@ private struct SessionRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 9) {
-            Circle()
-                .fill(statusColor)
-                .frame(width: 8, height: 8)
-                .padding(.top, 4)
+            Capsule()
+                .fill(statusBarColor)
+                .frame(width: 3, height: 28)
+                .padding(.top, 3)
+
+            Text(session.aiKind == .claude ? "C" : "G")
+                .font(.system(size: 8, weight: .bold, design: .monospaced))
+                .padding(.horizontal, 3)
+                .padding(.vertical, 2)
+                .background(Color.primary.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 3))
+                .foregroundColor(.secondary)
+                .padding(.top, 5)
 
             VStack(alignment: .leading, spacing: 2) {
                 titleArea
-                subtitleRow
-                if !activity.isEmpty {
+                if !session.lastUserMessage.isEmpty {
+                    Text(session.lastUserMessage)
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+                if let skill = session.activeSkill, session.workState == .working {
+                    Text("/\(skill)")
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .foregroundColor(.accentColor.opacity(0.85))
+                        .lineLimit(1)
+                } else if !activity.isEmpty {
                     Text(activity)
                         .font(.system(size: 10))
                         .foregroundColor(Color.secondary.opacity(0.85))
@@ -219,7 +257,7 @@ private struct SessionRow: View {
                 TagButton(sessionId: session.sessionId, tagStore: tagStore)
                     .frame(width: 14, height: 14)
                 if hovering && !isEditing {
-                    Text("resume")
+                    Text(session.aiKind == .claude ? "resume" : "new session")
                         .font(.system(size: 9, weight: .semibold))
                         .foregroundColor(.accentColor)
                 }
@@ -232,14 +270,16 @@ private struct SessionRow: View {
         .contentShape(Rectangle())
         .onTapGesture { if !isEditing { onTap() } }
         .onHover { hovering = $0 }
-        .help("Resume: claude -r \(session.sessionId)")
+        .help(session.aiKind == .claude
+            ? "Resume: claude -r \(session.sessionId)"
+            : "Opens a new Gemini session in: \(session.cwd)")
     }
 
     @ViewBuilder
     private var titleArea: some View {
         if isEditing {
             InlineNameField(
-                initialText: session.customName ?? session.title,
+                initialText: session.customName ?? session.projectName,
                 onCommit: { name in
                     isEditing = false
                     onRename(name)
@@ -248,35 +288,29 @@ private struct SessionRow: View {
             )
             .frame(height: 16)
         } else {
-            Text(session.displayName)
-                .font(.system(size: 12, weight: .medium))
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .onTapGesture(count: 2) { isEditing = true }
-        }
-    }
-
-    private var subtitleRow: some View {
-        HStack(spacing: 5) {
-            Text(session.projectName)
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundColor(.secondary)
-            ForEach(tagStore.tags(for: session.sessionId), id: \.self) { tag in
-                Text(tag)
-                    .font(.system(size: 9, weight: .semibold))
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 1)
-                    .background(
-                        RoundedRectangle(cornerRadius: 3)
-                            .fill(tagColor(tag).opacity(0.18))
-                    )
-                    .foregroundColor(tagColor(tag))
-            }
-            if !session.gitBranch.isEmpty {
-                Text(session.gitBranch)
-                    .font(.system(size: 10))
-                    .foregroundColor(Color.secondary.opacity(0.7))
+            HStack(spacing: 4) {
+                Text(session.displayName)
+                    .font(.system(size: 12, weight: .medium))
                     .lineLimit(1)
+                    .truncationMode(.tail)
+                    .onTapGesture(count: 2) { isEditing = true }
+                ForEach(tagStore.tags(for: session.sessionId), id: \.self) { tag in
+                    Text(tag)
+                        .font(.system(size: 9, weight: .semibold))
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1)
+                        .background(
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(tagColor(tag).opacity(0.18))
+                        )
+                        .foregroundColor(tagColor(tag))
+                }
+                if !session.gitBranch.isEmpty {
+                    Text(session.gitBranch)
+                        .font(.system(size: 10))
+                        .foregroundColor(Color.secondary.opacity(0.7))
+                        .lineLimit(1)
+                }
             }
         }
     }
@@ -286,11 +320,11 @@ private struct SessionRow: View {
         return session.toolDetail.isEmpty ? session.toolName : "\(session.toolName): \(session.toolDetail)"
     }
 
-    private var statusColor: Color {
-        switch session.status {
-        case .active:  return .green
-        case .idle:    return .orange
-        case .resting: return .gray
+    private var statusBarColor: Color {
+        if case .resting = session.status { return Color.secondary.opacity(0.35) }
+        switch session.workState {
+        case .working:   return .green
+        case .responded: return .orange
         }
     }
 
@@ -490,6 +524,54 @@ private struct TagRowView: View {
         .contentShape(Rectangle())
         .onTapGesture { if !isEditing { onToggle() } }
         .onHover { hovering = $0 }
+    }
+}
+
+// MARK: - Recently Closed Row
+
+private struct RecentlyClosedRow: View {
+    let item: (info: SessionInfo, closedAt: Date)
+    let onTap: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        HStack(spacing: 9) {
+            Text(item.info.aiKind == .claude ? "C" : "G")
+                .font(.system(size: 8, weight: .bold, design: .monospaced))
+                .padding(.horizontal, 3)
+                .padding(.vertical, 2)
+                .background(Color.primary.opacity(0.05))
+                .clipShape(RoundedRectangle(cornerRadius: 3))
+                .foregroundColor(Color.secondary.opacity(0.6))
+
+            Text(item.info.projectName.isEmpty ? item.info.displayName : item.info.projectName)
+                .font(.system(size: 11))
+                .foregroundColor(Color.secondary.opacity(0.8))
+                .lineLimit(1)
+
+            Spacer(minLength: 4)
+
+            if hovering {
+                Text(item.info.aiKind == .claude ? "Resume" : "Open new")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundColor(.accentColor)
+            } else {
+                TimelineView(.periodic(from: item.closedAt, by: 1.0)) { ctx in
+                    Text("\(Int(ctx.date.timeIntervalSince(item.closedAt)))s ago")
+                        .font(.system(size: 10))
+                        .foregroundColor(Color.secondary.opacity(0.6))
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 5)
+        .background(hovering ? Color.primary.opacity(0.06) : Color.clear)
+        .contentShape(Rectangle())
+        .onTapGesture { onTap() }
+        .onHover { hovering = $0 }
+        .help(item.info.aiKind == .claude
+            ? "Resume: claude -r \(item.info.sessionId)"
+            : "Opens a new Gemini session in: \(item.info.cwd)")
     }
 }
 

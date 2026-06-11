@@ -40,6 +40,11 @@ enum DebugRender {
             frames.append(CatRenderer.image(phase: p, mode: .running(2)))
         }
         frames.append(CatRenderer.image(phase: 0.0, mode: .sleeping))
+        // Bubble variants
+        for p in stride(from: 0.0, to: 3.6, by: 0.6) {
+            frames.append(CatRenderer.image(phase: p, mode: .running(2), waitingBubble: true))
+        }
+        frames.append(CatRenderer.image(phase: 0.0, mode: .sleeping, waitingBubble: true))
 
         let sheet = NSImage(size: NSSize(width: cellW * Double(frames.count), height: cellH))
         sheet.lockFocus()

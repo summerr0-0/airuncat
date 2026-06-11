@@ -44,13 +44,18 @@ enum ITermController {
         }
 
         var targetID: String?
+        let scwd = session.cwd
         for line in listed.split(separator: "\n") {
             let parts = line.split(separator: "\t", maxSplits: 1).map(String.init)
             guard parts.count == 2 else { continue }
             let sid = parts[0], tty = parts[1]
             let dirs = cwdsForTTY(tty)
             diag.append("session \(sid) tty=\(tty) cwds=\(dirs)")
-            if dirs.contains(session.cwd) { targetID = sid; break }
+            // Match exact cwd, or when the live shell is an ancestor/descendant of the session cwd.
+            let match = dirs.contains { dir in
+                dir == scwd || scwd.hasPrefix(dir + "/") || dir.hasPrefix(scwd + "/")
+            }
+            if match { targetID = sid; break }
         }
 
         guard let id = targetID else { diag.append("no iTerm tab matches cwd."); return false }
@@ -81,10 +86,22 @@ enum ITermController {
 
     static func openNew(_ session: SessionInfo) {
         let dir = session.cwd.isEmpty ? NSHomeDirectory() : session.cwd
-        let cmd = "cd '\(shellEscapeSingle(dir))' && claude -r \(session.sessionId)"
+        let cmd: String
+        switch session.aiKind {
+        case .claude:
+            cmd = "cd '\(shellEscapeSingle(dir))' && claude -r \(session.sessionId)"
+        case .gemini:
+            let exe = shellEscapeSingle(GeminiScanner.geminiPath ?? "gemini")
+            cmd = "cd '\(shellEscapeSingle(dir))' && \(exe)"
+        }
+        // Open in a new tab of the existing window if one exists; otherwise create a window.
         let script = """
         tell application id "\(bundleID)"
-          create window with default profile
+          if (count of windows) > 0 then
+            tell current window to create tab with default profile
+          else
+            create window with default profile
+          end if
           tell current session of current window to write text "\(appleScriptEscape(cmd))"
           activate
         end tell

@@ -5,7 +5,7 @@
 
 - 컨셉: AI가 바쁠수록 고양이가 빨리 뛰고, 다 쉬면 앉아서 존다 (RunCat 영감)
 
-## 현재 상태 (v0.2)
+## 현재 상태 (v0.3)
 
 - Swift / SwiftUI MenuBarExtra 앱, Command Line Tools만으로 빌드 (`build.sh`)
 - 세션 모니터: Claude + Gemini CLI 세션 통합 관제 (AIKind 배지, live process 필터)
@@ -15,6 +15,11 @@
 - 세션 이동: iTerm2 탭 포커스 (cwd prefix 매칭), 없으면 새 탭 (`claude -r` / `gemini`)
 - 로그인 자동 시작 LaunchAgent, 자체 서명 인증서 (재빌드해도 접근성 권한 유지)
 - 세션 커스텀 이름 (인라인 편집), 수동 태그/필터, idle 알림
+- **[NEW] Skills Manager**: Sessions/Skills 탭 전환, Obsidian SKILL_*.md symlink 관리
+  - C/G 배지로 링크 상태 (linked/broken/unlinked) 시각화
+  - 배지 클릭으로 on/off 토글, [수리] 버튼으로 broken 일괄 수정
+  - Orphan Links 섹션 + 원클릭 삭제
+  - 검색 필터
 - 하네스 일습 완비 (CLAUDE.md, AGENTS.md, rules, skills, settings.json, docs)
 
 ## 목표: OMC(oh-my-claudecode) 대체
@@ -83,14 +88,14 @@ airuncat은 세션 **외부**의 컨트롤 플레인으로, OMC가 하는 일을
   - `lsof` tty 매핑은 이미 있음 (`ITermController.cwdsForTTY`). tty를 통해 pty output 읽는 방법 검토.
   - 부하/복잡도가 크면 생략. 우선순위 낮음.
 
-### Phase 2 — Skills Manager [OMC 대체 핵심 #1]
+### Phase 2 — Skills Manager [완료]
 OMC의 skills 레지스트리 + 링크 관리를 GUI로 대체한다.
-- [ ] `06_AI_Config/SKILL_*.md` 전체 스캔 + 파싱 (frontmatter: name, description, type)
-- [ ] `~/.claude/commands/`, `~/.gemini/commands/` 링크 상태 매핑 (정상 / 깨진 링크 / 고아)
-- [ ] 스킬 on/off 토글 — off = symlink 제거, on = symlink 재생성 (`ln -sf`)
-- [ ] 깨진 링크/중복/고아 탐지 + 배지 표시 + 원클릭 수리
-- [ ] 새 스킬 생성 시 양쪽 자동 링크 (Obsidian 경로 → claude + gemini 동시)
-- [ ] 스킬 목록 드롭다운 패널 (메뉴바에서 접근, 검색 필터)
+- [x] `06_AI_Config/SKILL_*.md` 전체 스캔 + 파싱 (frontmatter: description)
+- [x] `~/.claude/commands/`, `~/.gemini/commands/` 링크 상태 매핑 (linked/broken/unlinked)
+- [x] 스킬 on/off 토글 — off = symlink 제거, on = symlink 재생성 (lstat 보호)
+- [x] 깨진 링크/고아 탐지 + 배지 표시 + 원클릭 수리
+- [x] 스킬 목록 드롭다운 패널 (Sessions/Skills 탭, 검색 필터)
+- [ ] 새 스킬 생성 + 양쪽 자동 링크 (Phase 2.5로 이동)
 
 ### Phase 2.5 — Harness Manager [OMC 대체 핵심 #2]
 OMC가 CLAUDE.md 주입으로 강제하는 설정들을 GUI로 관리한다.
@@ -123,8 +128,8 @@ airuncat이 직접 Claude CLI를 실행해 에이전트를 오케스트레이션
 - [ ] 작업 큐 (여러 작업 순차/병렬 실행)
 
 ## Next Action
-- [ ] `git init` + GitHub 레포 `airuncat` 연결 (`github.com/summerr0-0/airuncat`) → PR 생성
-- [ ] Phase 2(Skills Manager) "상세 기획"부터 워크플로우 1단계로 시작
+- [ ] Phase 2 커밋 → PR 생성 (git push + gh pr create)
+- [ ] Phase 2.5(Harness Manager) 상세 기획 (워크플로우 1단계)
 
 ## 주요 결정 / 기술 메모
 - 형태: macOS 메뉴바 앱 (SwiftUI MenuBarExtra, `LSUIElement`)

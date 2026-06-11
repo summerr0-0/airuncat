@@ -1,6 +1,10 @@
 import SwiftUI
 import AppKit
 
+// MARK: - Tab
+
+private enum Tab { case sessions, skills }
+
 // MARK: - Filter Mode
 
 private enum FilterMode: Equatable {
@@ -13,36 +17,19 @@ private enum FilterMode: Equatable {
 struct MenuContentView: View {
     @ObservedObject var store: SessionStore
     @ObservedObject var tagStore: TagStore
+    @State private var activeTab: Tab = .sessions
     @State private var filter: FilterMode = .all
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
             Divider()
-            if !usedTags.isEmpty {
-                filterBar
-                Divider()
-            }
-            if filteredSessions.isEmpty && store.recentlyClosed.isEmpty {
-                emptyState
+            tabBar
+            Divider()
+            if activeTab == .sessions {
+                sessionsContent
             } else {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 0) {
-                        ForEach(filteredSessions) { session in
-                            SessionRow(
-                                session: session,
-                                tagStore: tagStore,
-                                onTap: { store.resume(session) },
-                                onRename: { name in store.setCustomName(sessionId: session.sessionId, name: name) }
-                            )
-                            Divider().opacity(0.4)
-                        }
-                        if !store.recentlyClosed.isEmpty {
-                            recentlyClosedSection
-                        }
-                    }
-                }
-                .frame(maxHeight: 380)
+                SkillsView()
             }
             Divider()
             footer
@@ -56,6 +43,45 @@ struct MenuContentView: View {
     }
 
     // MARK: - Subviews
+
+    private var tabBar: some View {
+        HStack(spacing: 0) {
+            TabButton("Sessions", active: activeTab == .sessions) { activeTab = .sessions }
+            TabButton("Skills", active: activeTab == .skills) { activeTab = .skills }
+            Spacer()
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+    }
+
+    @ViewBuilder
+    private var sessionsContent: some View {
+        if !usedTags.isEmpty {
+            filterBar
+            Divider()
+        }
+        if filteredSessions.isEmpty && store.recentlyClosed.isEmpty {
+            emptyState
+        } else {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(filteredSessions) { session in
+                        SessionRow(
+                            session: session,
+                            tagStore: tagStore,
+                            onTap: { store.resume(session) },
+                            onRename: { name in store.setCustomName(sessionId: session.sessionId, name: name) }
+                        )
+                        Divider().opacity(0.4)
+                    }
+                    if !store.recentlyClosed.isEmpty {
+                        recentlyClosedSection
+                    }
+                }
+            }
+            .frame(maxHeight: 360)
+        }
+    }
 
     private var header: some View {
         HStack(spacing: 8) {
@@ -153,6 +179,33 @@ struct MenuContentView: View {
         case .untagged:   return store.visibleSessions.filter { tagStore.tags(for: $0.sessionId).isEmpty }
         case .tag(let t): return store.visibleSessions.filter { tagStore.tags(for: $0.sessionId).contains(t) }
         }
+    }
+}
+
+// MARK: - Tab Button
+
+private struct TabButton: View {
+    let label: String
+    let active: Bool
+    let action: () -> Void
+
+    init(_ label: String, active: Bool, action: @escaping () -> Void) {
+        self.label = label
+        self.active = active
+        self.action = action
+    }
+
+    var body: some View {
+        Button(action: action) {
+            Text(label)
+                .font(.system(size: 11, weight: active ? .semibold : .regular))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(active ? Color.accentColor.opacity(0.15) : Color.clear)
+                .clipShape(RoundedRectangle(cornerRadius: 5))
+                .foregroundColor(active ? .accentColor : .secondary)
+        }
+        .buttonStyle(.plain)
     }
 }
 

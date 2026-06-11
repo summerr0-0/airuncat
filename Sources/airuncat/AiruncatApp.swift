@@ -6,8 +6,8 @@ struct AiruncatApp: App {
     @StateObject private var store = SessionStore()
 
     init() {
-        NotificationManager.shared.requestPermission()
         // Debug path: `airuncat --render-frames [outPath]` dumps a contact sheet and exits.
+        // Must run before NotificationManager.shared (requires a real app bundle).
         let args = CommandLine.arguments
         if let idx = args.firstIndex(of: "--render-frames") {
             _ = NSApplication.shared   // ensure AppKit is initialized for lockFocus
@@ -16,6 +16,7 @@ struct AiruncatApp: App {
             print("wrote \(out)")
             exit(0)
         }
+        NotificationManager.shared.requestPermission()
     }
 
     var body: some Scene {

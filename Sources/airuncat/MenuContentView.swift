@@ -262,6 +262,7 @@ private struct SessionRow: View {
 
     @State private var hovering = false
     @State private var isEditing = false
+    @State private var harness: HarnessInfo? = nil
 
     var body: some View {
         HStack(alignment: .top, spacing: 9) {
@@ -307,8 +308,14 @@ private struct SessionRow: View {
                 Text(relativeTime)
                     .font(.system(size: 10))
                     .foregroundColor(.secondary)
-                TagButton(sessionId: session.sessionId, tagStore: tagStore)
-                    .frame(width: 14, height: 14)
+                HStack(spacing: 4) {
+                    // Always reserve badge space to prevent layout shift when scan completes
+                    HarnessBadgeButton(session: session, harness: $harness)
+                        .frame(minWidth: 36, maxWidth: 52).frame(height: 14)
+                        .opacity(harness != nil ? 1 : 0)
+                    TagButton(sessionId: session.sessionId, tagStore: tagStore)
+                        .frame(width: 14, height: 14)
+                }
                 if hovering && !isEditing {
                     Text(session.aiKind == .claude ? "resume" : "new session")
                         .font(.system(size: 9, weight: .semibold))
@@ -323,6 +330,12 @@ private struct SessionRow: View {
         .contentShape(Rectangle())
         .onTapGesture { if !isEditing { onTap() } }
         .onHover { hovering = $0 }
+        .task(id: session.cwd) {
+            let info = await Task.detached(priority: .background) {
+                HarnessScanner.scan(cwd: session.cwd)
+            }.value
+            harness = info
+        }
         .help(session.aiKind == .claude
             ? "Resume: claude -r \(session.sessionId)"
             : "Opens a new Gemini session in: \(session.cwd)")

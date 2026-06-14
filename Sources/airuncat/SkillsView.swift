@@ -10,6 +10,14 @@ struct SkillsView: View {
     @State private var repairErrors: [String] = []
     @State private var obsidianMissing = false
 
+    // Create form state
+    @State private var showCreateForm = false
+    @State private var createName = ""
+    @State private var createDescription = ""
+    @State private var createClaude = true
+    @State private var createGemini = true
+    @State private var createError: String? = nil
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             searchBar
@@ -26,7 +34,8 @@ struct SkillsView: View {
                         ForEach(filteredSkills) { skill in
                             SkillRow(
                                 skill: skill,
-                                onToggle: { toggle($0, for: $1) }
+                                onToggle: { toggle($0, for: $1) },
+                                onDelete: { deleteSkill(skill) }
                             )
                             Divider().opacity(0.4)
                         }
@@ -39,6 +48,10 @@ struct SkillsView: View {
                     }
                 }
                 .frame(maxHeight: 360)
+            }
+            if showCreateForm {
+                Divider()
+                createFormSection
             }
             Divider()
             bottomBar
@@ -134,15 +147,96 @@ struct SkillsView: View {
                     .foregroundColor(.secondary)
             }
             Spacer()
+            Button(showCreateForm ? "취소" : "+ 추가") {
+                if showCreateForm {
+                    resetCreateForm()
+                } else {
+                    showCreateForm = true
+                }
+            }
+            .buttonStyle(.plain)
+            .font(.system(size: 11))
+            .foregroundColor(showCreateForm ? .secondary : .accentColor)
             Button("Refresh") {
                 Task { await reload() }
             }
             .buttonStyle(.plain)
             .font(.system(size: 11))
             .foregroundColor(.accentColor)
+            .padding(.leading, 8)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+    }
+
+    // MARK: - Create Form
+
+    @ViewBuilder
+    private var createFormSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            // Name
+            HStack(spacing: 8) {
+                Text("이름")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .frame(width: 32, alignment: .trailing)
+                TextField("my-skill", text: $createName)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12, design: .monospaced))
+                    .onChange(of: createName) { val in
+                        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyz0123456789")
+                        let s = val.lowercased().unicodeScalars.compactMap { c -> Character? in
+                            if allowed.contains(c) { return Character(c) }
+                            if c == " " || c == "_" { return "-" }
+                            if c == "-" { return "-" }
+                            return nil
+                        }
+                        // Strip leading/trailing hyphens so isValidName stays consistent
+                        let sanitized = String(s).trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+                        if sanitized != val { createName = sanitized }
+                    }
+            }
+            // Description
+            HStack(spacing: 8) {
+                Text("설명")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .frame(width: 32, alignment: .trailing)
+                TextField("선택", text: $createDescription)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12))
+            }
+            // Link toggles
+            HStack(spacing: 8) {
+                Text("연결")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .frame(width: 32, alignment: .trailing)
+                FormLinkToggle("C", isOn: $createClaude)
+                FormLinkToggle("G", isOn: $createGemini)
+                Spacer()
+            }
+            // Error
+            if let err = createError {
+                Text(err)
+                    .font(.system(size: 10))
+                    .foregroundColor(.red)
+                    .padding(.leading, 40)
+            }
+            // Buttons
+            HStack {
+                Spacer()
+                let canCreate = isValidName(createName) && !isDuplicateName(createName)
+                Button("생성") { Task { await performCreate() } }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(canCreate ? .accentColor : Color.secondary.opacity(0.5))
+                    .disabled(!canCreate)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color.primary.opacity(0.03))
     }
 
     // MARK: - Computed
@@ -212,6 +306,81 @@ struct SkillsView: View {
             orphans.removeAll { $0.id == orphan.id }
         }
     }
+
+    // MARK: - Create / Delete Actions
+
+    private func isValidName(_ name: String) -> Bool {
+        guard !name.isEmpty, name.count <= 40 else { return false }
+        guard name.range(of: "^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$",
+                         options: .regularExpression) != nil else { return false }
+        return !name.contains("--")
+    }
+
+    private func isDuplicateName(_ name: String) -> Bool {
+        if skills.contains(where: { $0.id == name }) { return true }
+        // Normalize all SKILL_*.md stems to kebab for comparison (handles both _ and - variants)
+        guard let items = try? FileManager.default.contentsOfDirectory(atPath: SkillScanner.obsidianBase)
+        else { return false }
+        return items.contains { file in
+            guard file.hasPrefix("SKILL_"), file.hasSuffix(".md") else { return false }
+            let stem = String(file.dropFirst("SKILL_".count).dropLast(".md".count))
+            return stem.lowercased().replacingOccurrences(of: "_", with: "-") == name
+        }
+    }
+
+    private func resetCreateForm() {
+        showCreateForm = false
+        createName = ""
+        createDescription = ""
+        createClaude = true
+        createGemini = true
+        createError = nil
+    }
+
+    @MainActor
+    private func performCreate() async {
+        createError = nil
+        // Capture @State values before entering detached task (Swift 6: @State is MainActor-isolated)
+        let name = createName
+        let desc = createDescription
+        let lc = createClaude
+        let lg = createGemini
+        let (record, fileError) = await Task.detached(priority: .userInitiated) {
+            SkillToggler.createSkill(name: name, description: desc, linkClaude: lc, linkGemini: lg)
+        }.value
+
+        if let err = fileError {
+            createError = err
+            return
+        }
+        // Capture link errors before resetting form (resetCreateForm clears createError)
+        var linkErr: String? = nil
+        if let rec = record, (rec.claudeError != nil || rec.geminiError != nil) {
+            linkErr = [rec.claudeError, rec.geminiError].compactMap { $0 }.joined(separator: " / ")
+        }
+        resetCreateForm()
+        await reload()
+        // Show link errors in the persistent error banner (visible after form is closed)
+        if let err = linkErr {
+            repairErrors.append("링크 오류: \(err)")
+        }
+    }
+
+    private func deleteSkill(_ skill: SkillRecord) {
+        let result = SkillToggler.deleteSkill(skill)
+        if result.fileError == nil {
+            skills.removeAll { $0.id == skill.id }
+        }
+        Task {
+            await reload()  // reload() resets repairErrors; append warnings AFTER
+            if let err = result.fileError {
+                repairErrors.append(err)
+            }
+            if !result.warnings.isEmpty {
+                repairErrors.append(contentsOf: result.warnings)
+            }
+        }
+    }
 }
 
 // MARK: - Skill Row
@@ -219,45 +388,86 @@ struct SkillsView: View {
 private struct SkillRow: View {
     let skill: SkillRecord
     let onToggle: (SkillRecord, AI) -> Void
+    let onDelete: () -> Void
     @State private var hovering = false
+    @State private var confirmingDelete = false
 
     var body: some View {
-        HStack(spacing: 9) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(skill.id)
-                    .font(.system(size: 12, weight: .medium))
-                    .lineLimit(1)
-                if !skill.description.isEmpty {
-                    Text(skill.description)
+        VStack(spacing: 0) {
+            HStack(spacing: 9) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(skill.id)
+                        .font(.system(size: 12, weight: .medium))
+                        .lineLimit(1)
+                    if !skill.description.isEmpty {
+                        Text(skill.description)
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                            .lineLimit(2)
+                    }
+                    if let err = skill.claudeError ?? skill.geminiError {
+                        Text(err)
+                            .font(.system(size: 10))
+                            .foregroundColor(.red)
+                            .lineLimit(2)
+                    }
+                }
+
+                Spacer(minLength: 8)
+
+                HStack(spacing: 5) {
+                    LinkBadge("C", state: skill.claudeState) { onToggle(skill, .claude) }
+                    LinkBadge("G", state: skill.geminiState) { onToggle(skill, .gemini) }
+                    if hovering && !confirmingDelete {
+                        Button {
+                            confirmingDelete = true
+                        } label: {
+                            Image(systemName: "trash")
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .help("스킬 삭제")
+                    }
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(hovering && !confirmingDelete ? Color.primary.opacity(0.05) : Color.clear)
+            .contentShape(Rectangle())
+            .onHover { hovering = $0 }
+            .onTapGesture {
+                if !confirmingDelete {
+                    NSWorkspace.shared.open(URL(fileURLWithPath: skill.obsidianPath))
+                }
+            }
+            .help("Obsidian에서 열기: \(skill.obsidianPath)")
+
+            if confirmingDelete {
+                Divider().opacity(0.4)
+                HStack(spacing: 0) {
+                    Button("취소") { confirmingDelete = false }
+                        .buttonStyle(.plain)
                         .font(.system(size: 10))
                         .foregroundColor(.secondary)
-                        .lineLimit(2)
-                }
-                // Inline errors
-                if let err = skill.claudeError ?? skill.geminiError {
-                    Text(err)
+                    Spacer()
+                    Text("파일 및 링크를 모두 삭제합니다")
                         .font(.system(size: 10))
-                        .foregroundColor(.red)
-                        .lineLimit(2)
+                        .foregroundColor(.red.opacity(0.8))
+                    Spacer()
+                    Button("삭제") {
+                        confirmingDelete = false
+                        onDelete()
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(.red)
                 }
-            }
-
-            Spacer(minLength: 8)
-
-            HStack(spacing: 5) {
-                LinkBadge("C", state: skill.claudeState) { onToggle(skill, .claude) }
-                LinkBadge("G", state: skill.geminiState) { onToggle(skill, .gemini) }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Color.red.opacity(0.05))
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 7)
-        .background(hovering ? Color.primary.opacity(0.05) : Color.clear)
-        .contentShape(Rectangle())
-        .onHover { hovering = $0 }
-        .onTapGesture {
-            NSWorkspace.shared.open(URL(fileURLWithPath: skill.obsidianPath))
-        }
-        .help("Obsidian에서 열기: \(skill.obsidianPath)")
     }
 }
 
@@ -366,5 +576,30 @@ private struct OrphanRow: View {
         .background(hovering ? Color.orange.opacity(0.04) : Color.clear)
         .contentShape(Rectangle())
         .onHover { hovering = $0 }
+    }
+}
+
+// MARK: - Form Link Toggle
+
+private struct FormLinkToggle: View {
+    let label: String
+    @Binding var isOn: Bool
+
+    init(_ label: String, isOn: Binding<Bool>) {
+        self.label = label
+        self._isOn = isOn
+    }
+
+    var body: some View {
+        Button { isOn.toggle() } label: {
+            Text(label)
+                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(isOn ? Color.accentColor.opacity(0.18) : Color.primary.opacity(0.07))
+                .foregroundColor(isOn ? .accentColor : .secondary)
+                .clipShape(RoundedRectangle(cornerRadius: 4))
+        }
+        .buttonStyle(.plain)
     }
 }

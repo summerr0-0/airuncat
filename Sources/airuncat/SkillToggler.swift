@@ -71,6 +71,104 @@ enum SkillToggler {
         return removeIfSymlink(at: orphan.path)
     }
 
+    // MARK: - Create Skill
+
+    /// Creates SKILL_*.md in Obsidian and optionally symlinks it.
+    /// Returns (record, fileError). Symlink errors are stored in record.claudeError/geminiError.
+    static func createSkill(
+        name: String,
+        description: String,
+        linkClaude: Bool,
+        linkGemini: Bool
+    ) -> (record: SkillRecord?, fileError: String?) {
+        let fm = FileManager.default
+
+        // Ensure Obsidian directory exists
+        if !fm.fileExists(atPath: SkillScanner.obsidianBase) {
+            do { try fm.createDirectory(atPath: SkillScanner.obsidianBase, withIntermediateDirectories: true) }
+            catch { return (nil, "디렉토리 생성 실패: \(error.localizedDescription)") }
+        }
+
+        let stem = name.uppercased().replacingOccurrences(of: "-", with: "_")
+        let obsidianPath = (SkillScanner.obsidianBase as NSString).appendingPathComponent("SKILL_\(stem).md")
+
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "en_US_POSIX")
+        df.dateFormat = "yyyy-MM-dd"
+        let dateStr = df.string(from: Date())
+        let escapedDesc = description
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+            .replacingOccurrences(of: "\n", with: " ")
+        let content = """
+        ---
+        title: "\(name)"
+        description: "\(escapedDesc)"
+        date: \(dateStr)
+        tags: []
+        status: active
+        ---
+
+        """
+
+        do { try content.write(toFile: obsidianPath, atomically: true, encoding: .utf8) }
+        catch { return (nil, "파일 생성 실패: \(error.localizedDescription)") }
+
+        guard fm.fileExists(atPath: obsidianPath) else { return (nil, "파일 생성 확인 실패") }
+
+        let claudeLink = (SkillScanner.claudeCommandsDir as NSString).appendingPathComponent("\(name).md")
+        let geminiLink = (SkillScanner.geminiCommandsDir as NSString).appendingPathComponent("\(name).toml")
+
+        var record = SkillRecord(
+            id: name, description: description, obsidianPath: obsidianPath,
+            claudeState: .unlinked, geminiState: .unlinked,
+            claudeLinkPath: claudeLink, geminiLinkPath: geminiLink
+        )
+
+        if linkClaude {
+            record.claudeError = enable(record, for: .claude)
+            record.claudeState = SkillScanner.linkState(at: claudeLink)
+        }
+        if linkGemini {
+            record.geminiError = enable(record, for: .gemini)
+            let newLink = SkillScanner.geminiLinkPath(for: name)
+            record.geminiState = SkillScanner.linkState(at: newLink)
+            record.geminiLinkPath = newLink
+        }
+
+        return (record, nil)
+    }
+
+    // MARK: - Delete Skill
+
+    struct DeleteResult {
+        var warnings: [String] = []  // symlink errors (non-fatal)
+        var fileError: String? = nil  // fatal: source file not removed
+    }
+
+    /// Removes all symlinks then the Obsidian source file. Always attempts all steps.
+    static func deleteSkill(_ skill: SkillRecord) -> DeleteResult {
+        var result = DeleteResult()
+
+        // 1. Claude symlink
+        if let err = removeIfSymlink(at: skill.claudeLinkPath) { result.warnings.append(err) }
+
+        // 2. Gemini symlinks — record's actual path + both extensions to catch legacy links
+        let geminiToml = (SkillScanner.geminiCommandsDir as NSString).appendingPathComponent("\(skill.id).toml")
+        let geminiMd   = (SkillScanner.geminiCommandsDir as NSString).appendingPathComponent("\(skill.id).md")
+        var geminiPaths = [geminiToml, geminiMd]
+        if !geminiPaths.contains(skill.geminiLinkPath) { geminiPaths.append(skill.geminiLinkPath) }
+        for path in geminiPaths {
+            if let err = removeIfSymlink(at: path) { result.warnings.append(err) }
+        }
+
+        // 3. Obsidian source file (fatal)
+        do { try FileManager.default.removeItem(atPath: skill.obsidianPath) }
+        catch { result.fileError = "파일 삭제 실패: \(error.localizedDescription)" }
+
+        return result
+    }
+
     // MARK: - Private
 
     private static func removeIfSymlink(at path: String) -> String? {

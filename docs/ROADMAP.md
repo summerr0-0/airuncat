@@ -104,7 +104,15 @@ OMC의 skills 레지스트리 + 링크 관리를 GUI로 대체한다.
 - [x] 스킬 on/off 토글 — off = symlink 제거, on = symlink 재생성 (lstat 보호)
 - [x] 깨진 링크/고아 탐지 + 배지 표시 + 원클릭 수리
 - [x] 스킬 목록 드롭다운 패널 (Sessions/Skills 탭, 검색 필터)
-- [ ] 새 스킬 생성 + 양쪽 자동 링크 (Phase 2.5로 이동)
+
+### Phase 2.6 — 스킬 추가 & 삭제 [완료]
+- [x] "+ 추가" 버튼 → 인라인 폼 (이름/설명/C+G 연결 토글)
+- [x] 이름 실시간 sanitize: ASCII 소문자+숫자+하이픈만, 선두/말미 하이픈 제거
+- [x] 중복 체크 2단계: 메모리(skills 배열) + 디스크(kebab 정규화 비교)
+- [x] 생성: `SKILL_*.md` 원자적 쓰기 + 선택한 AI symlink 자동 생성
+- [x] 삭제: 호버 → 휴지통 → 확인 배너 → [삭제]
+- [x] 삭제 순서: Claude symlink → Gemini symlink(.toml+.md) → 원본 파일 → reload
+- [x] 에러 표시: 파일 에러는 인라인, 링크 에러는 reload 후 errorBanner에 표시
 
 ### Phase 2.5 — Harness Manager [완료]
 OMC가 CLAUDE.md 주입으로 강제하는 설정들을 GUI로 관리한다.

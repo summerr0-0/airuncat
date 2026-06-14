@@ -55,7 +55,7 @@ struct GeminiScanner {
                 let mtime = attrs?.contentModificationDate ?? Date.distantPast
                 let size  = attrs?.fileSize ?? 0
 
-                if mtime < cutoff { continue }   // skip files older than 30 days
+                if mtime < cutoff { continue }   // skip files older than 48 hours
 
                 if let cached = cache[path], cached.mtime == mtime {
                     result.append(cached.info)
@@ -140,11 +140,18 @@ struct GeminiScanner {
 
         if title.isEmpty { title = projectName }
 
-        // Backward pass: determine workState + last user message
+        // Backward pass: determine workState + last user message + toolCalls + model
         var workState: WorkState = .working
         var lastUserMessage = ""
+        var toolName = ""
+        var toolDetail = ""
+        var modelName: String? = nil
         var foundWorkState = false
         var foundLastUser = false
+        var foundTool = false
+
+        let preferredKeys = ["file_path", "path", "command", "query"]
+        let fileKeys: Set<String> = ["file_path", "path"]
 
         for line in backwardLines.reversed() {
             guard let obj = jsonObj(line) else { continue }
@@ -165,7 +172,32 @@ struct GeminiScanner {
                 }
             }
 
-            if foundWorkState && foundLastUser { break }
+            if type == "gemini" {
+                if modelName == nil, let m = obj["model"] as? String, !m.isEmpty {
+                    modelName = m
+                }
+                if !foundTool,
+                   let calls = obj["toolCalls"] as? [[String: Any]],
+                   let lastCall = calls.last,
+                   let name = lastCall["name"] as? String, !name.isEmpty {
+                    let args = lastCall["args"] as? [String: Any] ?? [:]
+                    var detail = ""
+                    for key in preferredKeys {
+                        if let val = args[key] as? String, !val.isEmpty {
+                            detail = fileKeys.contains(key)
+                                ? (val as NSString).lastPathComponent
+                                : val
+                            break
+                        }
+                    }
+                    if detail.isEmpty {
+                        detail = args.keys.sorted().compactMap { args[$0] as? String }.first ?? ""
+                    }
+                    toolName = name
+                    toolDetail = trim(detail, 60)
+                    foundTool = true
+                }
+            }
         }
 
         return SessionInfo(
@@ -178,14 +210,15 @@ struct GeminiScanner {
             gitBranch: "",
             firstInstruction: title,
             lastUserMessage: lastUserMessage,
-            toolName: "",
-            toolDetail: "",
+            toolName: toolName,
+            toolDetail: toolDetail,
             activeSkill: nil,
             lastActivity: mtime,
             messageCount: messageCount,
             category: .dev,
             workState: workState,
-            aiKind: .gemini
+            aiKind: .gemini,
+            modelName: modelName
         )
     }
 

@@ -58,6 +58,12 @@ final class SessionStore: ObservableObject {
 
     var activeCount: Int { visibleSessions.filter { if case .active = $0.status { return true }; return false }.count }
     var idleCount: Int { visibleSessions.filter { if case .idle = $0.status { return true }; return false }.count }
+    var claudeActiveCount: Int {
+        visibleSessions.filter { $0.aiKind == .claude }.filter { if case .active = $0.status { return true }; return false }.count
+    }
+    var geminiActiveCount: Int {
+        visibleSessions.filter { $0.aiKind == .gemini }.filter { if case .active = $0.status { return true }; return false }.count
+    }
     var hasWaitingSession: Bool {
         visibleSessions.contains { $0.workState == .responded && $0.status != .resting }
     }

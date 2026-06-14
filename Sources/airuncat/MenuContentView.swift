@@ -160,9 +160,18 @@ struct MenuContentView: View {
     // MARK: - Computed
 
     private var summary: String {
-        let a = store.activeCount, i = store.idleCount
+        let c = store.claudeActiveCount
+        let g = store.geminiActiveCount
+        let a = c + g
+        let i = store.idleCount
         if a == 0 && i == 0 { return "all quiet" }
-        return "\(a) active · \(i) idle"
+        var parts: [String] = []
+        if c > 0 { parts.append("\(c)C") }
+        if g > 0 { parts.append("\(g)G") }
+        let activePart = parts.joined(separator: " ")
+        if a == 0 { return "\(i) idle" }
+        if i == 0 { return "\(activePart) active" }
+        return "\(activePart) active · \(i) idle"
     }
 
     private var usedTags: [String] {

@@ -1,7 +1,7 @@
 ---
 title: "Phase 4 — Gemini 연동 고도화 spec"
 date: 2026-06-13
-status: pending-approval
+status: complete
 ---
 
 # 목표

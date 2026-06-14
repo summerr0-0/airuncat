@@ -46,6 +46,7 @@ struct SessionInfo: Identifiable {
     var category: SessionCategory
     var workState: WorkState
     var aiKind: AIKind
+    var modelName: String? = nil  // Gemini model string; nil for Claude
 
     var status: SessionStatus { SessionStatus(lastActivity: lastActivity) }
     var displayName: String { customName ?? projectName }

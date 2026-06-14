@@ -24,41 +24,10 @@ enum ITermController {
         defer { writeLog(diag.joined(separator: "\n")) }
 
         guard !session.cwd.isEmpty else { diag.append("no cwd; cannot match."); return false }
-
-        let listScript = """
-        tell application id "\(bundleID)"
-          set out to ""
-          repeat with w in windows
-            repeat with t in tabs of w
-              repeat with s in sessions of t
-                set out to out & (id of s) & "\t" & (tty of s) & linefeed
-              end repeat
-            end repeat
-          end repeat
-          return out
-        end tell
-        """
-        guard let listed = runAppleScript(listScript, diag: &diag) else {
-            diag.append("could not list iTerm sessions (not running / not authorized).")
+        guard let id = findSessionID(for: session.cwd, diag: &diag) else {
+            diag.append("no iTerm tab matches cwd.")
             return false
         }
-
-        var targetID: String?
-        let scwd = session.cwd
-        for line in listed.split(separator: "\n") {
-            let parts = line.split(separator: "\t", maxSplits: 1).map(String.init)
-            guard parts.count == 2 else { continue }
-            let sid = parts[0], tty = parts[1]
-            let dirs = cwdsForTTY(tty)
-            diag.append("session \(sid) tty=\(tty) cwds=\(dirs)")
-            // Match exact cwd, or when the live shell is an ancestor/descendant of the session cwd.
-            let match = dirs.contains { dir in
-                dir == scwd || scwd.hasPrefix(dir + "/") || dir.hasPrefix(scwd + "/")
-            }
-            if match { targetID = sid; break }
-        }
-
-        guard let id = targetID else { diag.append("no iTerm tab matches cwd."); return false }
 
         let focusScript = """
         tell application id "\(bundleID)"
@@ -109,6 +78,82 @@ enum ITermController {
         var diag = ["--- iterm openNew \(Date()) --- cmd=\(cmd)"]
         _ = runAppleScript(script, diag: &diag)
         writeLog(diag.joined(separator: "\n"))
+    }
+
+    // MARK: - Insert text (Prompt Library)
+
+    /// Write `text` to the clipboard then Cmd+V into the iTerm tab matching `cwd`.
+    /// Returns true on success. Caller is responsible for writing to clipboard before calling.
+    @discardableResult
+    static func insertText(cwd: String) -> Bool {
+        var diag = ["--- iterm insertText \(Date()) cwd=\(cwd) ---"]
+        defer { writeLog(diag.joined(separator: "\n")) }
+        guard !cwd.isEmpty else { return false }
+
+        guard let id = findSessionID(for: cwd, diag: &diag) else {
+            diag.append("no iTerm tab matches cwd")
+            return false
+        }
+
+        // Activate the matching session, then Cmd+V via System Events.
+        let pasteScript = """
+        tell application id "\(bundleID)"
+          repeat with w in windows
+            repeat with t in tabs of w
+              repeat with s in sessions of t
+                if (id of s) is "\(id)" then
+                  tell t to select
+                  tell s to select
+                  activate
+                end if
+              end repeat
+            end repeat
+          end repeat
+        end tell
+        delay 0.2
+        tell application "System Events"
+          keystroke "v" using {command down}
+        end tell
+        return "ok"
+        """
+        let r = runAppleScript(pasteScript, diag: &diag)
+        diag.append("insertText result: \(r ?? "nil")")
+        return r == "ok"
+    }
+
+    // MARK: - Session lookup
+
+    /// Returns the iTerm2 session ID whose cwd matches `cwd`, or nil if not found.
+    private static func findSessionID(for cwd: String, diag: inout [String]) -> String? {
+        let listScript = """
+        tell application id "\(bundleID)"
+          set out to ""
+          repeat with w in windows
+            repeat with t in tabs of w
+              repeat with s in sessions of t
+                set out to out & (id of s) & "\t" & (tty of s) & linefeed
+              end repeat
+            end repeat
+          end repeat
+          return out
+        end tell
+        """
+        guard let listed = runAppleScript(listScript, diag: &diag) else {
+            diag.append("could not list iTerm sessions (not running / not authorized).")
+            return nil
+        }
+        for line in listed.split(separator: "\n") {
+            let parts = line.split(separator: "\t", maxSplits: 1).map(String.init)
+            guard parts.count == 2 else { continue }
+            let sid = parts[0], tty = parts[1]
+            let dirs = cwdsForTTY(tty)
+            diag.append("session \(sid) tty=\(tty) cwds=\(dirs)")
+            let match = dirs.contains { dir in
+                dir == cwd || cwd.hasPrefix(dir + "/") || dir.hasPrefix(cwd + "/")
+            }
+            if match { return sid }
+        }
+        return nil
     }
 
     // MARK: - TTY -> cwd

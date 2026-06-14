@@ -3,7 +3,7 @@ import AppKit
 
 // MARK: - Tab
 
-private enum Tab { case sessions, skills }
+private enum Tab { case sessions, skills, prompts }
 
 // MARK: - Filter Mode
 
@@ -28,8 +28,10 @@ struct MenuContentView: View {
             Divider()
             if activeTab == .sessions {
                 sessionsContent
-            } else {
+            } else if activeTab == .skills {
                 SkillsView()
+            } else {
+                PromptLibraryView(store: store)
             }
             Divider()
             footer
@@ -48,6 +50,7 @@ struct MenuContentView: View {
         HStack(spacing: 0) {
             TabButton("Sessions", active: activeTab == .sessions) { activeTab = .sessions }
             TabButton("Skills", active: activeTab == .skills) { activeTab = .skills }
+            TabButton("Prompts", active: activeTab == .prompts) { activeTab = .prompts }
             Spacer()
         }
         .padding(.horizontal, 8)

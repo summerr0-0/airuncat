@@ -5,7 +5,7 @@
 
 - 컨셉: AI가 바쁠수록 고양이가 빨리 뛰고, 다 쉬면 앉아서 존다 (RunCat 영감)
 
-## 현재 상태 (v0.4)
+## 현재 상태 (v0.5)
 
 - Swift / SwiftUI MenuBarExtra 앱, Command Line Tools만으로 빌드 (`build.sh`)
 - 세션 모니터: Claude + Gemini CLI 세션 통합 관제 (AIKind 배지, live process 필터)
@@ -20,10 +20,15 @@
   - 배지 클릭으로 on/off 토글, [수리] 버튼으로 broken 일괄 수정
   - Orphan Links 섹션 + 원클릭 삭제
   - 검색 필터
-- **[NEW] Harness Manager**: 세션 행에 H 배지, 클릭 시 팝오버
+- **Harness Manager**: 세션 행에 H 배지, 클릭 시 팝오버
   - `.claude/rules/` 파일 목록, settings.json hooks on/off 토글
   - CLAUDE.md 내 OMC 존재 여부 감지
   - atomic write + mtime 충돌 가드, SHA256 기반 hook 식별
+- **[NEW] Prompt Library**: Prompts 탭에서 재사용 프롬프트 관리
+  - `~/Obsidian/document/07_Prompts/PROMPT_*.md` 파일 자동 스캔
+  - frontmatter (title/tags/category/pinned), flow + block YAML 양 형식 지원
+  - [⎘] 클립보드 복사 (1초 피드백), [▷] 활성 iTerm 세션 클립보드+Cmd+V 삽입
+  - 핀 고정 섹션 + 카테고리 그룹, 검색 필터, 탭 전환 시 재스캔
 - 하네스 일습 완비 (CLAUDE.md, AGENTS.md, rules, skills, settings.json, docs)
 
 ## 목표: OMC(oh-my-claudecode) 대체
@@ -112,12 +117,16 @@ OMC가 CLAUDE.md 주입으로 강제하는 설정들을 GUI로 관리한다.
 - [x] `.task(id: session.cwd)` lifecycle-bound 스캔 (뷰 사라질 때 자동 취소)
 - [x] 배지 공간 예약으로 pop-in 레이아웃 시프트 방지
 
-### Phase 3 — Prompt Library
+### Phase 3 — Prompt Library [완료]
 OMC의 스킬 기반 프롬프트 재사용을 독립 라이브러리로 대체한다.
-- [ ] 저장소 설계: md frontmatter (title, tags, category, shortcut)
-- [ ] 카테고리/태그 분류 + 검색
-- [ ] 클립보드 복사 또는 활성 세션 iTerm 탭에 직접 삽입
-- [ ] 자주 쓰는 프롬프트 핀 고정
+- [x] 저장소: `~/Obsidian/document/07_Prompts/PROMPT_*.md`
+- [x] frontmatter 파서: title/tags/category/pinned, flow + block YAML 배열 지원
+- [x] 카테고리 그룹 + 핀 고정 + 검색 필터
+- [x] [⎘] 클립보드 복사 (1초 체크 피드백, Task cancel 중복 방지)
+- [x] [▷] 활성 세션 iTerm 삽입 (클립보드+Cmd+V, 자동 실행 없음)
+- [x] "Insert to: X" 헤더로 삽입 대상 명시
+- [x] 탭 전환 시 재스캔 (`.onAppear + .task(id: scanID)`)
+- [x] ITermController.findSessionID 헬퍼 추출 (focus + insertText 중복 제거)
 
 ### Phase 4 — Claude / Gemini 통합 관제
 - [ ] 통합 세션 타임라인 (Claude + Gemini 이벤트 시계열)
@@ -134,8 +143,8 @@ airuncat이 직접 Claude CLI를 실행해 에이전트를 오케스트레이션
 - [ ] 작업 큐 (여러 작업 순차/병렬 실행)
 
 ## Next Action
-- [ ] Phase 2 + 2.5 커밋 → PR 생성 (git push + gh pr create)
-- [ ] Phase 3(Prompt Library) 상세 기획 (워크플로우 1단계)
+- [ ] Phase 2 + 2.5 + 3 커밋 → PR 생성 (git push + gh pr create)
+- [ ] Phase 4(Unified Control) 또는 Phase 1.5 백로그 아이템 선택
 
 ## 주요 결정 / 기술 메모
 - 형태: macOS 메뉴바 앱 (SwiftUI MenuBarExtra, `LSUIElement`)

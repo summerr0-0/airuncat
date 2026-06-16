@@ -83,7 +83,7 @@ struct SkillsView: View {
     }
 
     private var emptyState: some View {
-        Text("No skills found in Obsidian/06_AI_Config")
+        Text("No skills found in ~/.airuncat/skills")
             .font(.system(size: 11))
             .foregroundColor(.secondary)
             .frame(maxWidth: .infinity, alignment: .center)
@@ -92,9 +92,9 @@ struct SkillsView: View {
 
     private var missingObsidianNote: some View {
         VStack(spacing: 4) {
-            Text("Obsidian vault not found")
+            Text("Skills directory not found")
                 .font(.system(size: 12, weight: .medium))
-            Text(SkillScanner.obsidianBase)
+            Text(SkillManager.skillsDir)
                 .font(.system(size: 10, design: .monospaced))
                 .foregroundColor(.secondary)
         }
@@ -255,7 +255,7 @@ struct SkillsView: View {
         let (s, o) = await Task.detached(priority: .userInitiated) {
             SkillScanner.scan()
         }.value
-        obsidianMissing = s.isEmpty && !FileManager.default.fileExists(atPath: SkillScanner.obsidianBase)
+        obsidianMissing = s.isEmpty && !FileManager.default.fileExists(atPath: SkillManager.skillsDir)
         skills = s
         orphans = o
         repairErrors = []
@@ -319,7 +319,7 @@ struct SkillsView: View {
     private func isDuplicateName(_ name: String) -> Bool {
         if skills.contains(where: { $0.id == name }) { return true }
         // Normalize all SKILL_*.md stems to kebab for comparison (handles both _ and - variants)
-        guard let items = try? FileManager.default.contentsOfDirectory(atPath: SkillScanner.obsidianBase)
+        guard let items = try? FileManager.default.contentsOfDirectory(atPath: SkillManager.skillsDir)
         else { return false }
         return items.contains { file in
             guard file.hasPrefix("SKILL_"), file.hasSuffix(".md") else { return false }
@@ -438,10 +438,10 @@ private struct SkillRow: View {
             .onHover { hovering = $0 }
             .onTapGesture {
                 if !confirmingDelete {
-                    NSWorkspace.shared.open(URL(fileURLWithPath: skill.obsidianPath))
+                    NSWorkspace.shared.open(URL(fileURLWithPath: skill.sourcePath))
                 }
             }
-            .help("Obsidian에서 열기: \(skill.obsidianPath)")
+            .help("파인더에서 열기: \(skill.sourcePath)")
 
             if confirmingDelete {
                 Divider().opacity(0.4)

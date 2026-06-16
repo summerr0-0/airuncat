@@ -11,7 +11,7 @@ enum LinkState {
 struct SkillRecord: Identifiable {
     let id: String          // kebab-case name (also the display name)
     let description: String
-    let obsidianPath: String
+    let sourcePath: String  // ~/.airuncat/skills/SKILL_*.md
     var claudeState: LinkState
     var geminiState: LinkState
     var claudeLinkPath: String   // ~/.claude/commands/<name>.md
@@ -30,8 +30,6 @@ struct OrphanLink: Identifiable {
 // MARK: - Scanner
 
 enum SkillScanner {
-    static let obsidianBase =
-        (NSHomeDirectory() as NSString).appendingPathComponent("Obsidian/document/06_AI_Config")
     static let claudeCommandsDir =
         (NSHomeDirectory() as NSString).appendingPathComponent(".claude/commands")
     static let geminiCommandsDir =
@@ -39,14 +37,16 @@ enum SkillScanner {
 
     /// Returns (skill records sorted by name, orphan links found in commands dirs).
     static func scan() -> (skills: [SkillRecord], orphans: [OrphanLink]) {
+        SkillManager.migrateFromObsidianIfNeeded()
         let fm = FileManager.default
+        let skillsDir = SkillManager.skillsDir
 
-        // 1. Enumerate SKILL_*.md in Obsidian
+        // 1. Enumerate SKILL_*.md in local skills dir
         var skillFiles: [String] = []  // absolute paths
-        if let items = try? fm.contentsOfDirectory(atPath: obsidianBase) {
+        if let items = try? fm.contentsOfDirectory(atPath: skillsDir) {
             skillFiles = items
                 .filter { $0.hasPrefix("SKILL_") && $0.hasSuffix(".md") }
-                .map { (obsidianBase as NSString).appendingPathComponent($0) }
+                .map { (skillsDir as NSString).appendingPathComponent($0) }
         }
 
         // 2. All existing entries in commands dirs (for orphan detection)
@@ -77,7 +77,7 @@ enum SkillScanner {
             records.append(SkillRecord(
                 id: kebab,
                 description: desc,
-                obsidianPath: path,
+                sourcePath: path,
                 claudeState: cState,
                 geminiState: gState,
                 claudeLinkPath: claudeLink,

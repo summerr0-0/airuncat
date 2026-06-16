@@ -5,7 +5,7 @@ enum AI { case claude, gemini }
 enum SkillToggler {
     // MARK: - Enable (create symlink)
 
-    /// Creates a symlink from the commands dir to the Obsidian skill file.
+    /// Creates a symlink from the commands dir to the local skill file.
     /// Returns nil on success, error message on failure.
     @discardableResult
     static func enable(_ skill: SkillRecord, for ai: AI) -> String? {
@@ -28,7 +28,7 @@ enum SkillToggler {
         }
 
         do {
-            try fm.createSymbolicLink(atPath: linkPath, withDestinationPath: skill.obsidianPath)
+            try fm.createSymbolicLink(atPath: linkPath, withDestinationPath: skill.sourcePath)
             return nil
         } catch {
             return "링크 생성 실패: \(error.localizedDescription)"
@@ -73,7 +73,7 @@ enum SkillToggler {
 
     // MARK: - Create Skill
 
-    /// Creates SKILL_*.md in Obsidian and optionally symlinks it.
+    /// Creates SKILL_*.md in ~/.airuncat/skills/ and optionally symlinks it.
     /// Returns (record, fileError). Symlink errors are stored in record.claudeError/geminiError.
     static func createSkill(
         name: String,
@@ -82,15 +82,16 @@ enum SkillToggler {
         linkGemini: Bool
     ) -> (record: SkillRecord?, fileError: String?) {
         let fm = FileManager.default
+        let skillsDir = SkillManager.skillsDir
 
-        // Ensure Obsidian directory exists
-        if !fm.fileExists(atPath: SkillScanner.obsidianBase) {
-            do { try fm.createDirectory(atPath: SkillScanner.obsidianBase, withIntermediateDirectories: true) }
+        // Ensure skills directory exists
+        if !fm.fileExists(atPath: skillsDir) {
+            do { try fm.createDirectory(atPath: skillsDir, withIntermediateDirectories: true) }
             catch { return (nil, "디렉토리 생성 실패: \(error.localizedDescription)") }
         }
 
         let stem = name.uppercased().replacingOccurrences(of: "-", with: "_")
-        let obsidianPath = (SkillScanner.obsidianBase as NSString).appendingPathComponent("SKILL_\(stem).md")
+        let sourcePath = (skillsDir as NSString).appendingPathComponent("SKILL_\(stem).md")
 
         let df = DateFormatter()
         df.locale = Locale(identifier: "en_US_POSIX")
@@ -111,16 +112,16 @@ enum SkillToggler {
 
         """
 
-        do { try content.write(toFile: obsidianPath, atomically: true, encoding: .utf8) }
+        do { try content.write(toFile: sourcePath, atomically: true, encoding: .utf8) }
         catch { return (nil, "파일 생성 실패: \(error.localizedDescription)") }
 
-        guard fm.fileExists(atPath: obsidianPath) else { return (nil, "파일 생성 확인 실패") }
+        guard fm.fileExists(atPath: sourcePath) else { return (nil, "파일 생성 확인 실패") }
 
         let claudeLink = (SkillScanner.claudeCommandsDir as NSString).appendingPathComponent("\(name).md")
         let geminiLink = (SkillScanner.geminiCommandsDir as NSString).appendingPathComponent("\(name).toml")
 
         var record = SkillRecord(
-            id: name, description: description, obsidianPath: obsidianPath,
+            id: name, description: description, sourcePath: sourcePath,
             claudeState: .unlinked, geminiState: .unlinked,
             claudeLinkPath: claudeLink, geminiLinkPath: geminiLink
         )
@@ -146,7 +147,7 @@ enum SkillToggler {
         var fileError: String? = nil  // fatal: source file not removed
     }
 
-    /// Removes all symlinks then the Obsidian source file. Always attempts all steps.
+    /// Removes all symlinks then the local source file. Always attempts all steps.
     static func deleteSkill(_ skill: SkillRecord) -> DeleteResult {
         var result = DeleteResult()
 
@@ -162,8 +163,8 @@ enum SkillToggler {
             if let err = removeIfSymlink(at: path) { result.warnings.append(err) }
         }
 
-        // 3. Obsidian source file (fatal)
-        do { try FileManager.default.removeItem(atPath: skill.obsidianPath) }
+        // 3. Local source file (fatal)
+        do { try FileManager.default.removeItem(atPath: skill.sourcePath) }
         catch { result.fileError = "파일 삭제 실패: \(error.localizedDescription)" }
 
         return result

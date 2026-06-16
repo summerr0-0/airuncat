@@ -106,12 +106,14 @@ OMC의 skills 레지스트리 + 링크 관리를 GUI로 대체한다.
 - [x] 깨진 링크/고아 탐지 + 배지 표시 + 원클릭 수리
 - [x] 스킬 목록 드롭다운 패널 (Sessions/Skills 탭, 검색 필터)
 
-### Phase 2.7 — 스킬 로컬 독립 저장 [백로그]
-Phase 3.1(프롬프트 Obsidian → ~/.airuncat/prompts/ 이전)과 동일한 방식으로 스킬도 독립화.
-- [ ] 저장 경로: `~/Obsidian/document/06_AI_Config/SKILL_*.md` → `~/.airuncat/skills/SKILL_*.md`
-- [ ] 1회성 마이그레이션: Obsidian 원본 복사, 앱 첫 실행 시 자동 수행
-- [ ] SkillScanner.obsidianBase 경로 교체
-- [ ] Obsidian 의존 완전 제거
+### Phase 2.7 — 스킬 로컬 독립 저장 [완료]
+Phase 3.1(프롬프트 로컬화)과 동일한 패턴으로 스킬도 Obsidian 의존 제거.
+- [x] 저장 경로: `~/Obsidian/document/06_AI_Config/SKILL_*.md` → `~/.airuncat/skills/SKILL_*.md`
+- [x] `SkillManager.swift` 신규: skillsDir 상수 + migrateFromObsidianIfNeeded
+- [x] `SkillScanner`: obsidianBase 제거 → SkillManager.skillsDir, obsidianPath → sourcePath
+- [x] `SkillToggler`: createSkill/deleteSkill 경로 교체, enable() 심볼릭링크 대상 교체
+- [x] `SkillsView`: obsidianBase/obsidianPath 참조 제거, 빈 상태 문구 업데이트
+- [x] OMC 유용 스킬 10개 추가: ultrawork, autopilot, ralph, ralplan, deep-interview, code-review, commit, ask, remember, ai-slop-cleaner
 
 ### Phase 2.6 — 스킬 추가 & 삭제 [완료]
 - [x] "+ 추가" 버튼 → 인라인 폼 (이름/설명/C+G 연결 토글)

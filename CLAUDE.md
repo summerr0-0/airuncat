@@ -16,7 +16,8 @@ Sources/airuncat/
   ITermController.swift    iTerm2 탭 포커스 / 새 탭 세션 이동 (AppleScript)
   MenuContentView.swift    드롭다운 UI (Sessions/Skills/Prompts 탭, 필터 바)
   ProcessDetector.swift    live claude/gemini 프로세스 cwd 탐지 (ps + lsof)
-  SkillScanner.swift       Obsidian SKILL_*.md + commands 링크 상태 스캔
+  SkillManager.swift       skillsDir 상수 + Obsidian 마이그레이션
+  SkillScanner.swift       ~/.airuncat/skills/SKILL_*.md + commands 링크 상태 스캔
   SkillToggler.swift       symlink create/remove, createSkill, deleteSkill
   SkillsView.swift         Skills 탭 UI (토글/수리/추가/삭제)
   PromptScanner.swift      ~/.airuncat/prompts/*.md 파싱
@@ -31,13 +32,13 @@ build.sh                   release 빌드 + .app 번들 조립 + 자체 서명
 
 | 종류 | 경로 |
 |------|------|
-| 스킬 원본 | `~/Obsidian/document/06_AI_Config/SKILL_*.md` (Phase 2.7에서 `~/.airuncat/skills/`로 이전 예정) |
+| 스킬 원본 | `~/.airuncat/skills/SKILL_*.md` |
 | Claude 링크 | `~/.claude/commands/<name>.md` (symlink) |
 | Gemini 링크 | `~/.gemini/commands/<name>.toml` (symlink) |
 | 프롬프트 | `~/.airuncat/prompts/<name>.md` |
 | 커스텀 이름 | `~/.airuncat/custom-names.json` |
 
-**스킬 수동 추가:** `~/Obsidian/document/06_AI_Config/SKILL_[NAME].md` 생성 → 앱 C/G 배지 토글로 링크
+**스킬 수동 추가:** `~/.airuncat/skills/SKILL_[NAME].md` 생성 → 앱 C/G 배지 토글로 링크
 **프롬프트 수동 추가:** `~/.airuncat/prompts/<name>.md` 생성 → 새로고침
 
 ## Active Rules

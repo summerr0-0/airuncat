@@ -3,28 +3,28 @@ import Foundation
 // MARK: - Model
 
 struct PromptRecord: Identifiable {
-    let id: String          // file stem, e.g. "PROMPT_ultrawork"
+    let id: String        // file stem (e.g. "code-review")
     let title: String
     let tags: [String]
     let category: String
-    let pinned: Bool
+    var pinned: Bool
     let body: String
+    let filePath: String  // absolute path to ~/.airuncat/prompts/<id>.md
 }
 
 // MARK: - Scanner
 
 enum PromptScanner {
-    static let promptsDir = (NSHomeDirectory() as NSString)
-        .appendingPathComponent("Obsidian/document/07_Prompts")
-
     static func scan() -> [PromptRecord] {
-        guard let items = try? FileManager.default.contentsOfDirectory(atPath: promptsDir) else { return [] }
+        PromptManager.migrateFromObsidianIfNeeded()
+        let dir = PromptManager.promptsDir
+        guard let items = try? FileManager.default.contentsOfDirectory(atPath: dir) else { return [] }
         return items
-            .filter { $0.hasPrefix("PROMPT_") && $0.hasSuffix(".md") }
+            .filter { $0.hasSuffix(".md") }
             .sorted()
             .compactMap { filename in
                 let stem = String(filename.dropLast(3))
-                let path = (promptsDir as NSString).appendingPathComponent(filename)
+                let path = (dir as NSString).appendingPathComponent(filename)
                 guard let content = try? String(contentsOfFile: path, encoding: .utf8) else { return nil }
                 let (meta, body) = parseFrontmatter(content)
                 return PromptRecord(
@@ -33,7 +33,8 @@ enum PromptScanner {
                     tags: meta["tags"] as? [String] ?? [],
                     category: meta["category"] as? String ?? "기타",
                     pinned: meta["pinned"] as? Bool ?? false,
-                    body: body
+                    body: body,
+                    filePath: path
                 )
             }
     }
@@ -72,7 +73,6 @@ enum PromptScanner {
             let rawVal = String(line[colonRange.upperBound...]).trimmingCharacters(in: .whitespaces)
 
             if rawVal.hasPrefix("[") && rawVal.hasSuffix("]") {
-                // Flow sequence: tags: [a, b, c]
                 let inner = String(rawVal.dropFirst().dropLast())
                 let items = inner.split(separator: ",")
                     .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -80,10 +80,6 @@ enum PromptScanner {
                 result[key] = items
                 i += 1
             } else if rawVal.isEmpty {
-                // Block sequence:
-                //   tags:
-                //     - a
-                //     - b
                 var items: [String] = []
                 i += 1
                 while i < lines.count {

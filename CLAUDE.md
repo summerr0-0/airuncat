@@ -14,8 +14,11 @@ Sources/airuncat/
   GeminiScanner.swift      ~/.gemini/tmp/*/chats/*.jsonl 파싱 (maxAge 48h)
   CatRenderer.swift        벡터 고양이 프레임 (질주/수면, 좌향, 대기 버블)
   ITermController.swift    iTerm2 탭 포커스 / 새 탭 세션 이동 (AppleScript)
-  MenuContentView.swift    드롭다운 UI (Sessions/Skills/Prompts 탭, 필터 바)
+  MenuContentView.swift    드롭다운 UI (Sessions/Skills/Prompts/MCP 탭, 필터 바)
   ProcessDetector.swift    live claude/gemini 프로세스 cwd 탐지 (ps + lsof)
+  MCPScanner.swift         ~/.mcp.json 파싱, enabledMcpjsonServers 활성 상태
+  MCPManager.swift         toggle/create/delete (atomic JSON write, settings.local.json)
+  MCPView.swift            MCP 탭 UI (토글/생성/삭제, UUID 에러 배너)
   SkillManager.swift       skillsDir 상수 + Obsidian 마이그레이션
   SkillScanner.swift       ~/.airuncat/skills/SKILL_*.md + commands 링크 상태 스캔
   SkillToggler.swift       symlink create/remove, createSkill, deleteSkill
@@ -37,6 +40,8 @@ build.sh                   release 빌드 + .app 번들 조립 + 자체 서명
 | Gemini 링크 | `~/.gemini/commands/<name>.toml` (symlink) |
 | 프롬프트 | `~/.airuncat/prompts/<name>.md` |
 | 커스텀 이름 | `~/.airuncat/custom-names.json` |
+| MCP 서버 목록 | `~/.mcp.json` (등록/삭제) |
+| MCP 활성 상태 | `~/.claude/settings.local.json` (`enabledMcpjsonServers` 배열) |
 
 **스킬 수동 추가:** `~/.airuncat/skills/SKILL_[NAME].md` 생성 → 앱 C/G 배지 토글로 링크
 **프롬프트 수동 추가:** `~/.airuncat/prompts/<name>.md` 생성 → 새로고침

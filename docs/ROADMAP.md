@@ -202,39 +202,17 @@ airuncat GUI로 완전 대체하기 위한 Phase 6+ 계획.
 
 ---
 
-### Phase 6 — MCP 서버 관리 [백로그]
+### Phase 6 — MCP 서버 관리 [완료]
+- [x] `MCPScanner`: `~/.mcp.json` 파싱, `enabledMcpjsonServers` 활성 상태 연동
+- [x] `MCPManager`: toggle(enabledMcpjsonServers 배열 편집) / create / delete (atomic JSON write)
+- [x] `MCPView`: MCP 탭 UI — 활성/비활성 토글, 2단계 삭제, 인라인 생성 폼, Finder 열기
+- [x] `MenuContentView`: Sessions/Skills/Prompts/**MCP** 4탭 확장
+- [x] toggle/delete async (Task.detached), errors UUID 태깅 (ForEach ID 충돌 방지)
 
-OMC의 `skill-portfolio-analyzer`(MCP 등록 상태 감사)를 GUI로 대체한다.
-`~/.claude.json` 내 `mcpServers` 블록을 읽어 활성 MCP 서버를 시각화·관리.
-
-**소스:**
-- `~/.claude.json` — 글로벌 Claude Code 설정 (`mcpServers` 키)
-- `.claude/settings.json` — 프로젝트 로컬 오버라이드
-
-**화면 구성 (Sessions 탭 하단 또는 별도 탭):**
-```
-[MCP Servers]                              [+ 추가] [새로고침]
-────────────────────────────────────────
-  context7       ● 활성   npx @context7    [편집] [삭제]
-  google-drive   ● 활성   node /path/...   [편집] [삭제]
-  my-server      ○ 비활성  python -m ...   [편집] [삭제]  (disabled 키 존재 시)
-────────────────────────────────────────
-  고아 항목 (명령어 경로 없음): broken-server  [삭제]
-```
-
-**기능:**
-- [ ] `MCPScanner`: `~/.claude.json` 파싱, `mcpServers` 배열 → `MCPRecord` (name, command, args, env, disabled)
-- [ ] 활성/비활성 토글 — `disabled: true` 키 추가/제거 (atomic write)
-- [ ] 고아 탐지 — command 실행파일이 존재하지 않는 항목
-- [ ] `+ 추가` 인라인 폼 — name / command / args 입력
-- [ ] 삭제 — 2단계 확인 후 `mcpServers` 블록에서 제거
-- [ ] 편집 — command/args 인라인 수정
-- [ ] 글로벌 vs 프로젝트 소스 배지 (G / P)
-
-**신규 파일:**
-- `MCPScanner.swift` — `~/.claude.json` 파싱
-- `MCPManager.swift` — enable/disable/create/delete (atomic write)
-- `MCPView.swift` — 탭 내 UI
+### Phase 6.1 — MCP broken 탐지 [백로그]
+- [ ] MCPRecord에 `isBroken: Bool` 추가
+- [ ] 절대경로 command만 존재 여부 체크 (`npx`/`node`/`python`/`uvx`/`deno` 제외)
+- [ ] broken 항목에 ⚠ 배지 + 별도 섹션 표시
 
 ---
 

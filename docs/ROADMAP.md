@@ -216,31 +216,13 @@ airuncat GUI로 완전 대체하기 위한 Phase 6+ 계획.
 
 ---
 
-### Phase 7 — Rules 에디터 [백로그]
-
-현재 Harness 팝오버는 `.claude/rules/` 파일 목록을 보여주기만 한다.
-이를 CRUD 가능한 에디터로 확장한다. OMC의 rule injection 기능을 GUI로 대체.
-
-**현재 상태:** `HarnessScanner`가 rule 파일 목록 반환 → `HarnessPopoverView`에서 파일명 나열 + `settings.json` 열기 링크.
-
-**확장 기능:**
-- [ ] Rule 파일 내용 인라인 미리보기 (팝오버 내 스크롤 텍스트, 첫 5줄)
-- [ ] `+ 새 Rule` 버튼 → 이름 입력 → `.claude/rules/<name>.md` 생성 (기본 템플릿 포함)
-  ```markdown
-  # Rule 이름
-  
-  여기에 AI에게 강제할 제약이나 동작을 기술한다.
-  ```
-- [ ] Rule 파일 삭제 (2단계 확인)
-- [ ] 글로벌(`~/.claude/rules/`) vs 프로젝트(`.claude/rules/`) 구분 섹션
-- [ ] Finder에서 열기 버튼 (외부 에디터로 편집 유도)
-- [ ] rule 파일 mtime 기반 "마지막 수정" 표시
-
-**수정 파일:**
-- `HarnessScanner.swift` — rule 파일 mtime, 첫 줄(요약) 파싱 추가
-- `HarnessScanner.swift` — 글로벌 rules 경로(`~/.claude/rules/`) 추가 스캔
-- `RuleManager.swift` (신규) — create/delete rule 파일
-- `HarnessPopoverView` (확장) — 미리보기 + CRUD UI 추가
+### Phase 7 — Rules 에디터 [완료]
+- [x] `RuleFile` 모델 확장: `id(scope:stem)` / `summary` / `mtime` / `scope` 추가
+- [x] `HarnessScanner`: 글로벌 `~/.claude/rules/` 추가 스캔, `readSummary` / stat mtime
+- [x] `HarnessBadgeButton.Coordinator.tapped` 비동기 (`Task.detached`) — main thread I/O 방지, double-tap guard
+- [x] `RuleManager` (신규): create / delete (원자 쓰기, 디렉토리 자동 생성)
+- [x] `HarnessPopoverView`: [G]/[P] 배지, hover 삭제·Finder 버튼, 미리보기 토글(5줄), 생성 폼, 재스캔 패턴
+- [x] 글로벌 rule 삭제 시 "모든 프로젝트에 영향" 경고 문구
 
 ---
 

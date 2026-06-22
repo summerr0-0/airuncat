@@ -26,7 +26,8 @@ Sources/airuncat/
   PromptScanner.swift      ~/.airuncat/prompts/*.md 파싱
   PromptManager.swift      migrate/create/delete/togglePin
   PromptLibraryView.swift  Prompts 탭 UI (핀/카테고리/검색/추가/삭제)
-  HarnessScanner.swift     .claude/rules + settings.json hooks 파싱
+  HarnessScanner.swift     .claude/rules + ~/.claude/rules 파싱 (RuleFile: scope/summary/mtime)
+  RuleManager.swift        rule 파일 create/delete (원자 쓰기)
   TagStore.swift / CustomNameStore.swift / NotificationManager.swift
 build.sh                   release 빌드 + .app 번들 조립 + 자체 서명
 ```

@@ -3,9 +3,18 @@ import CryptoKit
 
 // MARK: - Models
 
+enum RuleScope {
+    case global, project
+    var prefix: String { self == .global ? "g" : "p" }
+}
+
 struct RuleFile: Identifiable {
-    let id: String   // stem (also used as display name)
+    let id: String       // "\(scope.prefix):\(stem)" — scope 포함, ForEach 충돌 방지
+    let stem: String     // 파일명 stem (표시용)
     let path: String
+    let summary: String  // 파일 첫 비빈·비헤더 줄 (없으면 "")
+    let mtime: Date      // stat mtime
+    let scope: RuleScope
 }
 
 struct HookEntry: Identifiable {
@@ -40,6 +49,9 @@ struct HarnessInfo {
 // MARK: - Scanner
 
 enum HarnessScanner {
+    static let globalRulesDir: String =
+        (NSHomeDirectory() as NSString).appendingPathComponent(".claude/rules")
+
     static func scan(cwd: String) -> HarnessInfo? {
         let claudeDir = (cwd as NSString).appendingPathComponent(".claude")
         guard FileManager.default.fileExists(atPath: claudeDir) else { return nil }
@@ -64,16 +76,37 @@ enum HarnessScanner {
     // MARK: - Helpers
 
     private static func scanRules(claudeDir: String) -> [RuleFile] {
-        let rulesDir = (claudeDir as NSString).appendingPathComponent("rules")
-        guard let items = try? FileManager.default.contentsOfDirectory(atPath: rulesDir) else { return [] }
+        var result: [RuleFile] = []
+        result += scanRulesDir(globalRulesDir, scope: .global)
+        let projectRulesDir = (claudeDir as NSString).appendingPathComponent("rules")
+        result += scanRulesDir(projectRulesDir, scope: .project)
+        return result
+    }
+
+    private static func scanRulesDir(_ dir: String, scope: RuleScope) -> [RuleFile] {
+        guard let items = try? FileManager.default.contentsOfDirectory(atPath: dir) else { return [] }
         return items
             .filter { $0.hasSuffix(".md") }
             .sorted()
             .map { filename in
                 let stem = String(filename.dropLast(3))
-                let path = (rulesDir as NSString).appendingPathComponent(filename)
-                return RuleFile(id: stem, path: path)
+                let path = (dir as NSString).appendingPathComponent(filename)
+                return RuleFile(
+                    id: "\(scope.prefix):\(stem)",
+                    stem: stem,
+                    path: path,
+                    summary: readSummary(path: path),
+                    mtime: mtime(of: path) ?? .distantPast,
+                    scope: scope
+                )
             }
+    }
+
+    private static func readSummary(path: String) -> String {
+        guard let content = try? String(contentsOfFile: path, encoding: .utf8) else { return "" }
+        return content.components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .first { !$0.isEmpty && !$0.hasPrefix("#") } ?? ""
     }
 
     private static func scanHooks(settingsPath: String) -> [HookEntry] {

@@ -16,6 +16,8 @@ Sources/airuncat/
   ITermController.swift    iTerm2 탭 포커스 / 새 탭 세션 이동 (AppleScript)
   MenuContentView.swift    드롭다운 UI (Sessions/Skills/Prompts/MCP 탭, 필터 바)
   ProcessDetector.swift    live claude/gemini 프로세스 cwd 탐지 (ps + lsof)
+  ClaudeMdScanner.swift    CLAUDE.md exists/scan (배지 prefetch vs 팝오버 풀스캔 분리)
+  ClaudeMdPopoverView.swift CLAUDE.md 팝오버 (글로벌/프로젝트 탭, 미리보기, 생성)
   MemoryScanner.swift      ~/.claude/projects/*/memory/ 파싱 (MemoryRecord: type/mtime)
   MemoryManager.swift      delete (파일 + MEMORY.md 인덱스 줄 제거)
   MemoryPopoverView.swift  Memory 배지 팝오버 UI (타입별 그룹, 미리보기, 삭제)

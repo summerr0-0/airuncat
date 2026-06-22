@@ -252,36 +252,14 @@ airuncat GUI로 완전 대체하기 위한 Phase 6+ 계획.
 
 ---
 
-### Phase 10 — CLAUDE.md 관리 [백로그]
+### Phase 10 — CLAUDE.md 관리 [완료]
+- [x] `ClaudeMdScanner`: `exists(cwd:)`(배지 prefetch, fileExists만) / `scan(cwd:)`(팝오버 full parse + wordCount)
+- [x] `ClaudeMdPopoverView`: 글로벌/프로젝트 탭, 첫 20줄 미리보기, wordCount 표시(500+ 경고), "에디터로 열기", 없을 때 "+ 생성" 버튼
+- [x] Session 행 `[C]` 배지 16pt (존재 시만 opacity 1)
+- [x] footer "G.md" 버튼 — 글로벌 CLAUDE.md 항상 접근
 
-OMC가 CLAUDE.md를 컨텍스트 주입 수단으로 사용하는 것처럼,
-airuncat에서 글로벌·프로젝트 CLAUDE.md를 빠르게 열람·편집.
-
-**소스:**
-- `~/.claude/CLAUDE.md` — 글로벌 (모든 프로젝트 공통)
-- `<project>/.claude/CLAUDE.md` 또는 `<project>/CLAUDE.md` — 프로젝트 로컬
-- `<project>/AGENTS.md` — 에이전트 지시 파일 (Claude + Gemini 공통)
-
-**기능:**
-- [ ] Sessions 탭 세션 행에 "M" 배지 — 프로젝트 CLAUDE.md 존재 여부
-- [ ] 배지 클릭 → 팝오버에서 첫 20줄 미리보기
-- [ ] "에디터에서 열기" 버튼 — `NSWorkspace.open(url)`
-- [ ] "Finder에서 열기" 버튼 — 해당 디렉토리
-- [ ] 글로벌 CLAUDE.md 빠른 접근 — footer에 "G.md" 버튼
-- [ ] AGENTS.md 존재 시 팝오버에 탭 구분 (CLAUDE.md | AGENTS.md)
-- [ ] 프로젝트 없는 경우 `+ CLAUDE.md 생성` 버튼 → 기본 템플릿으로 파일 생성
-  ```markdown
-  # 프로젝트 이름
-  
-  ## 역할
-  
-  ## 규칙
-  ```
-- [ ] 글로벌 CLAUDE.md 단어 수 / 마지막 수정일 표시 (컨텍스트 비대 경고)
-
-**수정 파일:**
-- `HarnessScanner.swift` — CLAUDE.md / AGENTS.md 경로·크기·mtime 파싱 추가
-- `CLAUDEMDView.swift` (신규) — 팝오버 미리보기 UI
+### Phase 10.1 — AGENTS.md 지원 [백로그]
+- [ ] AGENTS.md 존재 시 팝오버에 탭 추가
 
 ---
 

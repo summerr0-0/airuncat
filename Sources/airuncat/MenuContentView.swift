@@ -150,6 +150,13 @@ struct MenuContentView: View {
                 .buttonStyle(.plain)
                 .font(.system(size: 11))
                 .foregroundColor(.accentColor)
+            Button("G.md") {
+                NSWorkspace.shared.open(URL(fileURLWithPath: ClaudeMdScanner.globalPath))
+            }
+            .buttonStyle(.plain)
+            .font(.system(size: 11))
+            .foregroundColor(.secondary)
+            .help("글로벌 CLAUDE.md 열기")
             Spacer()
             Button("Quit") { NSApplication.shared.terminate(nil) }
                 .buttonStyle(.plain)
@@ -279,6 +286,7 @@ private struct SessionRow: View {
     @State private var isEditing = false
     @State private var harness: HarnessInfo? = nil
     @State private var memoryCount: Int = 0
+    @State private var claudeMdExists: Bool = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 9) {
@@ -325,6 +333,9 @@ private struct SessionRow: View {
                     .font(.system(size: 10))
                     .foregroundColor(.secondary)
                 HStack(spacing: 4) {
+                    ClaudeMdBadgeButton(session: session)
+                        .frame(width: 16, height: 14)
+                        .opacity(claudeMdExists ? 1 : 0)
                     MemoryBadgeButton(session: session, memoryCount: $memoryCount)
                         .frame(width: 32, height: 14)
                         .opacity(memoryCount > 0 ? 1 : 0)
@@ -361,6 +372,13 @@ private struct SessionRow: View {
                 MemoryScanner.count(forJsonl: jsonlPath)
             }.value
             memoryCount = count
+        }
+        .task(id: session.cwd + "-claudemd") {
+            let cwd = session.cwd
+            let exists = await Task.detached(priority: .background) {
+                ClaudeMdScanner.exists(cwd: cwd)
+            }.value
+            claudeMdExists = exists
         }
         .help(session.aiKind == .claude
             ? "Resume: claude -r \(session.sessionId)"

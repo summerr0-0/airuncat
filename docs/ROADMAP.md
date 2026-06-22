@@ -308,46 +308,29 @@ OMC의 Tier-0 workflows(autopilot, ultrawork, ralph 등)를 단축키 하나로 
 
 ---
 
-### Phase 12 — 세션 통계 [백로그]
+### Phase 12 — 세션 통계 [완료]
 
-OMC의 `session-pattern-analyzer`를 시각화한다.
-JSONL 파싱 결과를 집계해 사용 패턴을 한눈에.
+JSONL 파싱 집계로 Claude 세션 사용 패턴 시각화.
 
-**화면:**
-```
-[Stats]  이번 주                            [일/주/월]
-────────────────────────────────────────
-  Claude  47세션  ████████████  12.4h
-  Gemini  12세션  ███           3.1h
-────────────────────────────────────────
-  활동 히트맵 (시간대별)
-  00 01 02 03 04 05 06 07 08 09 10 11 ...
-  월 ░░░░░░░░░░░░████████████░░
-  화 ░░░░░░░░░████████████████░
-  ...
-────────────────────────────────────────
-  자주 쓴 스킬    /ultrawork 23회  /run-clawde 18회
-  자주 쓴 프롬프트 code-review 15회  git-commit 12회
-  평균 세션 길이  Claude 28분  Gemini 19분
-```
-
-**기능:**
-- [ ] `StatsScanner`: `~/.claude/projects/` 전체 JSONL 순회, 날짜·mtime 집계
-  - 일별 세션 수, 총 활동 시간 (mtime 델타 합산)
-  - 시간대별 활동 분포 (히트맵용 24×7 배열)
-  - 스킬 사용 빈도 (tool_use type=Skill 이벤트 집계)
-- [ ] 캐시 — `~/.airuncat/stats-cache.json` (날짜별, 신규 JSONL만 증분 업데이트)
-- [ ] 기간 필터 (일/주/월/전체)
-- [ ] Claude vs Gemini 분리 통계
-- [ ] 자주 쓴 스킬·프롬프트 top-N 목록
-- [ ] 평균 세션 지속 시간
-- [ ] Stats 탭 추가 (Sessions / Skills / Prompts / Stats)
-- [ ] 히트맵 컬러 — `accentColor` 명도 단계 (0=투명, 4=진함)
+**구현:**
+- [x] `StatsScanner`: `~/.claude/projects/` 전체 JSONL 순회, mtime 기반 증분 캐시
+  - 세션 수, 활동 시간 (이벤트 타임스탬프 기반, 120min 캡)
+  - 7×24 히트맵 배열 (mtime 기준 요일·시간대)
+  - 스킬 사용 빈도 (tool_use name=Skill 이벤트, 4MB 이하 전체 / 초과 시 head+tail)
+- [x] 캐시 — `~/.airuncat/stats-cache.json` (mtime 증분 업데이트, 원자 쓰기)
+- [x] 기간 필터 이번 주 / 이번 달 / 전체
+- [x] 자주 쓴 스킬 top-N 바 차트
+- [x] Stats 탭 추가 (Sessions / Skills / Prompts / MCP / Stats)
+- [x] 히트맵 컬러 — `accentColor.opacity(density)`, 셀 10×8pt
 
 **신규 파일:**
-- `StatsScanner.swift` — 집계 로직 (background Task)
-- `StatsStore.swift` — `@MainActor ObservableObject`, 캐시 관리
-- `StatsView.swift` — 히트맵 + 차트 UI
+- `StatsScanner.swift` — 집계 로직, cache IO
+- `StatsStore.swift` — `@MainActor ObservableObject`, period 필터
+- `StatsView.swift` — 기간 피커 + 요약 + 히트맵 + 스킬 바 차트
+
+**백로그:**
+- [ ] Phase 12.1: Gemini 세션 통계 통합 (Phase 4 이후)
+- [ ] Phase 12.2: 프롬프트 사용 빈도 (palette-history.json 연동)
 
 ---
 

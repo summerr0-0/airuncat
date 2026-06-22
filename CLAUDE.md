@@ -37,6 +37,9 @@ Sources/airuncat/
   ApplicationController.swift  @MainActor ObservableObject, tap CFMachPort 생명주기 관리
   PaletteViewModel.swift   스킬+프롬프트 통합 검색·필터·히스토리 (palette-history.json)
   QuickPalette.swift       NSPanel 플로팅 팔레트 창 + PaletteView + PaletteRow (SwiftUI)
+  StatsScanner.swift       ~/.claude/projects/ JSONL 집계 (mtime 증분 캐시, tool_use Skill 집계)
+  StatsStore.swift         @MainActor ObservableObject, period 필터, heatmap/topSkills 계산
+  StatsView.swift          Stats 탭 UI (기간 피커, 히트맵 7×24, 스킬 바 차트)
   TagStore.swift / CustomNameStore.swift / NotificationManager.swift
 build.sh                   release 빌드 + .app 번들 조립 + 자체 서명
 ```
@@ -53,6 +56,7 @@ build.sh                   release 빌드 + .app 번들 조립 + 자체 서명
 | MCP 서버 목록 | `~/.mcp.json` (등록/삭제) |
 | MCP 활성 상태 | `~/.claude/settings.local.json` (`enabledMcpjsonServers` 배열) |
 | 팔레트 이력 | `~/.airuncat/palette-history.json` (최근 50건, 원자 쓰기) |
+| 통계 캐시 | `~/.airuncat/stats-cache.json` (SessionStat 배열, mtime 증분) |
 
 **스킬 수동 추가:** `~/.airuncat/skills/SKILL_[NAME].md` 생성 → 앱 C/G 배지 토글로 링크
 **프롬프트 수동 추가:** `~/.airuncat/prompts/<name>.md` 생성 → 새로고침

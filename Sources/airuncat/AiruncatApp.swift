@@ -3,7 +3,8 @@ import AppKit
 
 @main
 struct AiruncatApp: App {
-    @StateObject private var store = SessionStore()
+    @StateObject private var store   = SessionStore()
+    @StateObject private var appCtrl = ApplicationController()
 
     init() {
         // Debug path: `airuncat --render-frames [outPath]` dumps a contact sheet and exits.
@@ -22,6 +23,12 @@ struct AiruncatApp: App {
     var body: some Scene {
         MenuBarExtra {
             MenuContentView(store: store, tagStore: store.tagStore)
+                .onAppear {
+                    let s = store
+                    appCtrl.registerShortcut {
+                        QuickPalette.shared.show(sessions: s.sessions)
+                    }
+                }
         } label: {
             Image(nsImage: store.catImage)
         }

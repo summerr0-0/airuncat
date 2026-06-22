@@ -33,6 +33,10 @@ Sources/airuncat/
   PromptLibraryView.swift  Prompts 탭 UI (핀/카테고리/검색/추가/삭제)
   HarnessScanner.swift     .claude/rules + ~/.claude/rules 파싱 (RuleFile: scope/summary/mtime)
   RuleManager.swift        rule 파일 create/delete (원자 쓰기)
+  GlobalShortcut.swift     CGEvent tap ⌥Space 글로벌 단축키 등록·해제 (HandlerBox, CFMachPort)
+  ApplicationController.swift  @MainActor ObservableObject, tap CFMachPort 생명주기 관리
+  PaletteViewModel.swift   스킬+프롬프트 통합 검색·필터·히스토리 (palette-history.json)
+  QuickPalette.swift       NSPanel 플로팅 팔레트 창 + PaletteView + PaletteRow (SwiftUI)
   TagStore.swift / CustomNameStore.swift / NotificationManager.swift
 build.sh                   release 빌드 + .app 번들 조립 + 자체 서명
 ```
@@ -48,6 +52,7 @@ build.sh                   release 빌드 + .app 번들 조립 + 자체 서명
 | 커스텀 이름 | `~/.airuncat/custom-names.json` |
 | MCP 서버 목록 | `~/.mcp.json` (등록/삭제) |
 | MCP 활성 상태 | `~/.claude/settings.local.json` (`enabledMcpjsonServers` 배열) |
+| 팔레트 이력 | `~/.airuncat/palette-history.json` (최근 50건, 원자 쓰기) |
 
 **스킬 수동 추가:** `~/.airuncat/skills/SKILL_[NAME].md` 생성 → 앱 C/G 배지 토글로 링크
 **프롬프트 수동 추가:** `~/.airuncat/prompts/<name>.md` 생성 → 새로고침

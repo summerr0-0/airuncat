@@ -263,14 +263,14 @@ airuncat GUI로 완전 대체하기 위한 Phase 6+ 계획.
 
 ---
 
-### Phase 11 — 퀵 팔레트 [백로그]
+### Phase 11 — 퀵 팔레트 [완료]
 
 OMC의 Tier-0 workflows(autopilot, ultrawork, ralph 등)를 단축키 하나로 실행하는
-스포트라이트 스타일 글로벌 팔레트. airuncat의 킬러 피처 후보.
+스포트라이트 스타일 글로벌 팔레트.
 
 **동작:**
 ```
-⌥Space  →  팔레트 창 표시
+⌥Space  →  팔레트 창 표시 (토글)
 ────────────────────────────────
   /            검색: 스킬 + 프롬프트 통합
 ────────────────────────────────
@@ -280,26 +280,31 @@ OMC의 Tier-0 workflows(autopilot, ultrawork, ralph 등)를 단축키 하나로 
   > git-commit        [Prompts]
 ────────────────────────────────
   삽입 대상: airuncat  ←  현재 활성 세션
-  [Enter] 삽입   [⌘Enter] 복사   [Esc] 닫기
+  [↩] 삽입   [⌘↩] 복사   [Esc] 닫기
 ```
 
-**기능:**
-- [ ] 글로벌 단축키 등록 — `CGEvent` tap 또는 `NSEvent.addGlobalMonitorForEvents` (`⌥Space` 기본값, 사용자 설정 가능)
-- [ ] 플로팅 패널 (`NSPanel`, `NSWindowStyleMask.nonactivatingPanel`) — 다른 앱 포커스 유지
-- [ ] 스킬 + 프롬프트 통합 검색 (실시간 fuzzy 필터)
-- [ ] 최근 사용 항목 상단 정렬 (LocalStorage: `~/.airuncat/palette-history.json`)
-- [ ] `Enter` → 현재 활성 iTerm 세션에 텍스트 주입 (`ITermController.insertText`)
-- [ ] `⌘Enter` → 클립보드 복사만 (주입 없이)
-- [ ] 삽입 대상 세션 자동 감지 (가장 최근 활성 세션) + 수동 선택 드롭다운
-- [ ] 스킬 선택 시 `/skill-name` 형태로 주입 (Claude 세션이면 바로 slash 커맨드 실행)
-- [ ] 팔레트 열기 시 세션 목록 최신화
+**구현:**
+- [x] `CGEvent` tap 기반 `⌥Space` 글로벌 단축키 (접근성 권한 재사용)
+- [x] `NSPanel` 플로팅 창 (floating level, canJoinAllSpaces, hidesOnDeactivate=false)
+- [x] 스킬 + 프롬프트 통합 검색 — 관련도(prefix>contains) → 최근 사용 → 알파벳 정렬
+- [x] 최근 사용 이력 — `~/.airuncat/palette-history.json` (최대 50건, 원자 쓰기)
+- [x] `↩` → NSPasteboard + `ITermController.insertText(cwd:)` + 자동 닫기
+- [x] `⌘↩` → 클립보드 복사만
+- [x] 삽입 대상 자동 감지 (active > idle, Claude, lastActivity 최신)
+- [x] 스킬 주입 시 `"/name\n"` — Claude CLI slash command 즉시 실행
+- [x] 팔레트 열 때마다 최신 스킬·프롬프트 재스캔
+- [x] `Package.swift` macOS 14로 상향 (`.onKeyPress` 사용)
+- [x] `ApplicationController` — CGEvent tap `CFMachPort` 생명주기 관리
 
 **신규 파일:**
-- `QuickPalette.swift` — `NSPanel` 기반 플로팅 창
-- `GlobalShortcut.swift` — `CGEvent` tap 글로벌 단축키 등록·해제
+- `QuickPalette.swift` — `NSPanel` + SwiftUI `PaletteView` + 키 처리
+- `GlobalShortcut.swift` — CGEvent tap 등록·해제 (`HandlerBox` 타입 안전)
 - `PaletteViewModel.swift` — 검색·필터·히스토리 로직
+- `ApplicationController.swift` — tap 생명주기 `@StateObject` 관리
 
-**권한:** `com.apple.security.temporary-exception.mach-lookup` 또는 접근성 권한(이미 있음)으로 글로벌 이벤트 모니터 가능.
+**백로그:**
+- [ ] Phase 11.1: 삽입 대상 수동 드롭다운 선택
+- [ ] Phase 11.2: 사용자 정의 단축키 설정 UI
 
 ---
 

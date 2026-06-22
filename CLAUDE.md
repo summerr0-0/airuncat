@@ -16,6 +16,9 @@ Sources/airuncat/
   ITermController.swift    iTerm2 탭 포커스 / 새 탭 세션 이동 (AppleScript)
   MenuContentView.swift    드롭다운 UI (Sessions/Skills/Prompts/MCP 탭, 필터 바)
   ProcessDetector.swift    live claude/gemini 프로세스 cwd 탐지 (ps + lsof)
+  MemoryScanner.swift      ~/.claude/projects/*/memory/ 파싱 (MemoryRecord: type/mtime)
+  MemoryManager.swift      delete (파일 + MEMORY.md 인덱스 줄 제거)
+  MemoryPopoverView.swift  Memory 배지 팝오버 UI (타입별 그룹, 미리보기, 삭제)
   MCPScanner.swift         ~/.mcp.json 파싱, enabledMcpjsonServers 활성 상태
   MCPManager.swift         toggle/create/delete (atomic JSON write, settings.local.json)
   MCPView.swift            MCP 탭 UI (토글/생성/삭제, UUID 에러 배너)

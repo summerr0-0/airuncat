@@ -226,43 +226,15 @@ airuncat GUI로 완전 대체하기 위한 Phase 6+ 계획.
 
 ---
 
-### Phase 8 — Memory 뷰어 [백로그]
+### Phase 8 — Memory 뷰어 [완료]
+- [x] `MemoryScanner`: jsonl 경로 → `memory/` 유도 (cwd 인코딩 재구현 없이), frontmatter 파싱 (nested `metadata.type`)
+- [x] `MemoryManager`: delete (파일 삭제 + MEMORY.md `](\(filename))` 앵커 매칭으로 인덱스 줄 제거)
+- [x] `MemoryPopoverView`: user/feedback/project/reference 타입별 그룹, 행 클릭 미리보기 토글, 삭제
+- [x] Session 행 `[M N]` 배지 — `.task(id: session.id)` 비동기 카운트, `SessionInfo` 비수정
+- [x] `MemoryBadgeButton`: `HarnessBadgeButton` 패턴, double-tap guard
 
-OMC의 auto-memory(`~/.claude/projects/*/memory/`)를 GUI에서 열람·편집.
-어떤 기억이 쌓여 있는지 확인하고 오래된 항목을 정리하는 용도.
-
-**소스:**
-- `~/.claude/projects/<encoded-cwd>/memory/MEMORY.md` — 인덱스
-- `~/.claude/projects/<encoded-cwd>/memory/*.md` — 개별 메모리 파일
-
-**화면 구성:**
-```
-[Memory]  프로젝트: airuncat            [Finder 열기] [새로고침]
-────────────────────────────────────────
-  [user]    사용자 프로필·선호도          2개
-  [feedback] 작업 피드백·교정           5개
-  [project]  프로젝트 현황·목표          3개
-  [reference] 외부 시스템 참조          1개
-────────────────────────────────────────
-  * project-airuncat.md     2026-06-11   [보기] [삭제]
-  * feedback-testing.md     2026-06-10   [보기] [삭제]
-  ...
-```
-
-**기능:**
-- [ ] `MemoryScanner`: `~/.claude/projects/` 전체 순회 → 각 프로젝트의 `memory/` 디렉토리 탐지
-- [ ] MEMORY.md 인덱스 파싱 → 메모리 파일 목록과 type 연결
-- [ ] 메모리 파일 frontmatter 파싱 (`name`, `description`, `type`) 
-- [ ] type별 그룹핑 (user / feedback / project / reference)
-- [ ] 인라인 미리보기 (팝오버 또는 확장 행)
-- [ ] 삭제 — MEMORY.md 인덱스에서 해당 줄 제거 + 파일 삭제 (atomic)
-- [ ] Sessions 탭 연동 — 세션 행 클릭 시 해당 프로젝트 메모리 팝오버로 표시
-- [ ] "All Projects" 통합 뷰 — 전체 프로젝트 메모리 한눈에
-
-**신규 파일:**
-- `MemoryScanner.swift`
-- `MemoryManager.swift` — delete (MEMORY.md 인덱스 라인 제거 + 파일 삭제)
-- `MemoryView.swift` — 독립 탭 또는 Sessions 탭 하단 섹션
+### Phase 8.1 — Memory All-projects 뷰 [백로그]
+- [ ] 전체 프로젝트 메모리 통합 뷰 (탭 또는 별도 패널)
 
 ---
 

@@ -278,6 +278,7 @@ private struct SessionRow: View {
     @State private var hovering = false
     @State private var isEditing = false
     @State private var harness: HarnessInfo? = nil
+    @State private var memoryCount: Int = 0
 
     var body: some View {
         HStack(alignment: .top, spacing: 9) {
@@ -324,6 +325,9 @@ private struct SessionRow: View {
                     .font(.system(size: 10))
                     .foregroundColor(.secondary)
                 HStack(spacing: 4) {
+                    MemoryBadgeButton(session: session, memoryCount: $memoryCount)
+                        .frame(width: 32, height: 14)
+                        .opacity(memoryCount > 0 ? 1 : 0)
                     // Always reserve badge space to prevent layout shift when scan completes
                     HarnessBadgeButton(session: session, harness: $harness)
                         .frame(minWidth: 36, maxWidth: 52).frame(height: 14)
@@ -350,6 +354,13 @@ private struct SessionRow: View {
                 HarnessScanner.scan(cwd: session.cwd)
             }.value
             harness = info
+        }
+        .task(id: session.id) {
+            let jsonlPath = session.id
+            let count = await Task.detached(priority: .background) {
+                MemoryScanner.count(forJsonl: jsonlPath)
+            }.value
+            memoryCount = count
         }
         .help(session.aiKind == .claude
             ? "Resume: claude -r \(session.sessionId)"

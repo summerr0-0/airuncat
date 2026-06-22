@@ -90,8 +90,8 @@ enum SkillToggler {
             catch { return (nil, "디렉토리 생성 실패: \(error.localizedDescription)") }
         }
 
-        let stem = name.uppercased().replacingOccurrences(of: "-", with: "_")
-        let sourcePath = (skillsDir as NSString).appendingPathComponent("SKILL_\(stem).md")
+        let stem = name.lowercased().replacingOccurrences(of: "_", with: "-")
+        let sourcePath = (skillsDir as NSString).appendingPathComponent("\(stem).md")
 
         let df = DateFormatter()
         df.locale = Locale(identifier: "en_US_POSIX")
@@ -122,6 +122,7 @@ enum SkillToggler {
 
         var record = SkillRecord(
             id: name, description: description, sourcePath: sourcePath,
+            scope: .global,
             claudeState: .unlinked, geminiState: .unlinked,
             claudeLinkPath: claudeLink, geminiLinkPath: geminiLink
         )

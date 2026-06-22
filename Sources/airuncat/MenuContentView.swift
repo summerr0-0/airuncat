@@ -30,7 +30,7 @@ struct MenuContentView: View {
             if activeTab == .sessions {
                 sessionsContent
             } else if activeTab == .skills {
-                SkillsView()
+                SkillsView(projectCwd: activeSessionCwd)
             } else if activeTab == .prompts {
                 PromptLibraryView(store: store)
             } else if activeTab == .mcp {
@@ -197,6 +197,12 @@ struct MenuContentView: View {
             }
         }
         return result
+    }
+
+    private var activeSessionCwd: String? {
+        let sessions = store.visibleSessions
+        return (sessions.first { $0.status == .active && $0.aiKind == .claude }
+             ?? sessions.first { $0.status == .idle && $0.aiKind == .claude })?.cwd
     }
 
     private var filteredSessions: [SessionInfo] {

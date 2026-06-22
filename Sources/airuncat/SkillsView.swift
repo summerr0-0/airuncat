@@ -3,6 +3,7 @@ import SwiftUI
 // MARK: - Skills View
 
 struct SkillsView: View {
+    var projectCwd: String? = nil
     @State private var skills: [SkillRecord] = []
     @State private var orphans: [OrphanLink] = []
     @State private var searchText = ""
@@ -252,8 +253,9 @@ struct SkillsView: View {
     @MainActor
     private func reload() async {
         isLoading = true
+        let cwd = projectCwd
         let (s, o) = await Task.detached(priority: .userInitiated) {
-            SkillScanner.scan()
+            SkillScanner.scan(projectCwd: cwd)
         }.value
         obsidianMissing = s.isEmpty && !FileManager.default.fileExists(atPath: SkillManager.skillsDir)
         skills = s
@@ -416,18 +418,26 @@ private struct SkillRow: View {
                 Spacer(minLength: 8)
 
                 HStack(spacing: 5) {
-                    LinkBadge("C", state: skill.claudeState) { onToggle(skill, .claude) }
-                    LinkBadge("G", state: skill.geminiState) { onToggle(skill, .gemini) }
-                    if hovering && !confirmingDelete {
-                        Button {
-                            confirmingDelete = true
-                        } label: {
-                            Image(systemName: "trash")
-                                .font(.system(size: 10))
-                                .foregroundColor(.secondary)
+                    // Scope badge
+                    Text(skill.scope == .project ? "P" : "G")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(skill.scope == .project ? .orange : .secondary)
+                        .help(skill.scope == .project ? "프로젝트 로컬 (.claude/commands/)" : "글로벌 (~/.airuncat/skills/)")
+
+                    if skill.scope == .global {
+                        LinkBadge("C", state: skill.claudeState) { onToggle(skill, .claude) }
+                        LinkBadge("G", state: skill.geminiState) { onToggle(skill, .gemini) }
+                        if hovering && !confirmingDelete {
+                            Button {
+                                confirmingDelete = true
+                            } label: {
+                                Image(systemName: "trash")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .help("스킬 삭제")
                         }
-                        .buttonStyle(.plain)
-                        .help("스킬 삭제")
                     }
                 }
             }
@@ -443,7 +453,7 @@ private struct SkillRow: View {
             }
             .help("파인더에서 열기: \(skill.sourcePath)")
 
-            if confirmingDelete {
+            if confirmingDelete && skill.scope == .global {
                 Divider().opacity(0.4)
                 HStack(spacing: 0) {
                     Button("취소") { confirmingDelete = false }

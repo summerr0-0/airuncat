@@ -8,14 +8,20 @@ enum LinkState {
     case unlinked  // no entry
 }
 
+enum SkillScope {
+    case global   // ~/.airuncat/skills/ — managed by airuncat, linked to commands dirs
+    case project  // <cwd>/.claude/commands/ — project-local, Claude reads directly
+}
+
 struct SkillRecord: Identifiable {
-    let id: String          // kebab-case name (also the display name)
+    let id: String          // kebab-case name
     let description: String
-    let sourcePath: String  // ~/.airuncat/skills/SKILL_*.md
+    let sourcePath: String
+    var scope: SkillScope
     var claudeState: LinkState
     var geminiState: LinkState
     var claudeLinkPath: String   // ~/.claude/commands/<name>.md
-    var geminiLinkPath: String   // ~/.gemini/commands/<name>.toml (preferred)
+    var geminiLinkPath: String   // ~/.gemini/commands/<name>.toml
     var claudeError: String?
     var geminiError: String?
 }
@@ -36,16 +42,17 @@ enum SkillScanner {
         (NSHomeDirectory() as NSString).appendingPathComponent(".gemini/commands")
 
     /// Returns (skill records sorted by name, orphan links found in commands dirs).
-    static func scan() -> (skills: [SkillRecord], orphans: [OrphanLink]) {
+    /// Pass `projectCwd` to also include project-local skills from `<cwd>/.claude/commands/`.
+    static func scan(projectCwd: String? = nil) -> (skills: [SkillRecord], orphans: [OrphanLink]) {
         SkillManager.migrateFromObsidianIfNeeded()
         let fm = FileManager.default
         let skillsDir = SkillManager.skillsDir
 
-        // 1. Enumerate SKILL_*.md in local skills dir
-        var skillFiles: [String] = []  // absolute paths
+        // 1. Enumerate *.md in global skills dir
+        var skillFiles: [String] = []
         if let items = try? fm.contentsOfDirectory(atPath: skillsDir) {
             skillFiles = items
-                .filter { $0.hasPrefix("SKILL_") && $0.hasSuffix(".md") }
+                .filter { $0.hasSuffix(".md") }
                 .map { (skillsDir as NSString).appendingPathComponent($0) }
         }
 
@@ -53,36 +60,57 @@ enum SkillScanner {
         let claudeEntries = commandPaths(in: claudeCommandsDir)
         let geminiEntries = commandPaths(in: geminiCommandsDir)
 
-        // 3. Build SkillRecord per skill file
+        // 3. Build SkillRecord per global skill file
         var knownNames = Set<String>()
         var records: [SkillRecord] = []
 
         for path in skillFiles {
-            let fileName = (path as NSString).lastPathComponent  // e.g. SKILL_DAILY_VOCAB.md
-            let stem = String(fileName.dropFirst("SKILL_".count).dropLast(".md".count))
+            let fileName = (path as NSString).lastPathComponent
+            let rawStem = String(fileName.dropLast(".md".count))
+            let stem = rawStem.hasPrefix("SKILL_") ? String(rawStem.dropFirst("SKILL_".count)) : rawStem
             let kebab = stem.lowercased().replacingOccurrences(of: "_", with: "-")
 
-            // Collision detection: first alphabetically wins
             guard !knownNames.contains(kebab) else { continue }
             knownNames.insert(kebab)
 
             let desc = parseFrontmatterDescription(at: path)
-
             let claudeLink = (claudeCommandsDir as NSString).appendingPathComponent("\(kebab).md")
             let geminiLink = geminiLinkPath(for: kebab)
-
-            let cState = linkState(at: claudeLink, fm: fm)
-            let gState = linkState(at: geminiLink, fm: fm)
 
             records.append(SkillRecord(
                 id: kebab,
                 description: desc,
                 sourcePath: path,
-                claudeState: cState,
-                geminiState: gState,
+                scope: .global,
+                claudeState: linkState(at: claudeLink, fm: fm),
+                geminiState: linkState(at: geminiLink, fm: fm),
                 claudeLinkPath: claudeLink,
                 geminiLinkPath: geminiLink
             ))
+        }
+
+        // 4. Project-local skills from <cwd>/.claude/commands/
+        if let cwd = projectCwd, !cwd.isEmpty {
+            let projCommandsDir = (cwd as NSString).appendingPathComponent(".claude/commands")
+            if let items = try? fm.contentsOfDirectory(atPath: projCommandsDir) {
+                for filename in items.filter({ $0.hasSuffix(".md") }) {
+                    let kebab = String(filename.dropLast(".md".count)).lowercased()
+                    guard !knownNames.contains(kebab) else { continue }  // global wins on collision
+                    knownNames.insert(kebab)
+                    let path = (projCommandsDir as NSString).appendingPathComponent(filename)
+                    let desc = parseFrontmatterDescription(at: path)
+                    records.append(SkillRecord(
+                        id: kebab,
+                        description: desc,
+                        sourcePath: path,
+                        scope: .project,
+                        claudeState: .linked,   // project skills need no symlink
+                        geminiState: .unlinked,
+                        claudeLinkPath: path,
+                        geminiLinkPath: ""
+                    ))
+                }
+            }
         }
 
         records.sort { $0.id < $1.id }

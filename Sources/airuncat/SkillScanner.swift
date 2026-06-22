@@ -8,7 +8,7 @@ enum LinkState {
     case unlinked  // no entry
 }
 
-enum SkillScope {
+enum SkillScope: Equatable {
     case global   // ~/.airuncat/skills/ — managed by airuncat, linked to commands dirs
     case project  // <cwd>/.claude/commands/ — project-local, Claude reads directly
 }
@@ -113,7 +113,12 @@ enum SkillScanner {
             }
         }
 
-        records.sort { $0.id < $1.id }
+        records.sort {
+            let aIsGlobal = $0.scope == .global
+            let bIsGlobal = $1.scope == .global
+            if aIsGlobal != bIsGlobal { return aIsGlobal }
+            return $0.id < $1.id
+        }
 
         // 4. Orphan detection — check every entry, not just per-stem-unique ones
         var orphans: [OrphanLink] = []

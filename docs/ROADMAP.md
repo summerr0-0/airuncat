@@ -238,37 +238,17 @@ airuncat GUI로 완전 대체하기 위한 Phase 6+ 계획.
 
 ---
 
-### Phase 9 — 설정 패널 [백로그]
+### Phase 9 — 설정 패널 (Permissions + Hook 삭제) [완료]
+- [x] `PermissionEntry` 모델: `id="kind:pattern"`, `HarnessInfo.permissions` 추가
+- [x] `HarnessScanner.scanPermissions`: `permissions.allow/deny` 파싱
+- [x] `HarnessManager.addPermission`: 신규 중첩 키 생성, 중복 체크
+- [x] `HarnessManager.removePermission`: 배열에서 제거 + atomic write
+- [x] `HarnessManager.deleteHook`: disabled hook extract-only (no re-insert)
+- [x] `HarnessPopoverView`: Permissions 섹션 (allow ✓/deny ⊘), 인라인 생성 폼, disabled hook 삭제 버튼, maxHeight 480
 
-현재 Harness 팝오버는 hooks on/off 토글만 지원한다.
-`settings.json` 전체를 GUI로 관리할 수 있도록 확장한다.
-
-**소스:**
-- `~/.claude/settings.json` — 글로벌 설정
-- `.claude/settings.json` — 프로젝트 로컬 설정
-
-**확장 기능:**
-
-_Hooks 섹션 (현재: 토글만)_
-- [ ] `+ 새 Hook` 인라인 폼 — type(Pre/PostToolUse), matcher, command 입력
-- [ ] Hook 삭제 (현재 `_disabledHooks`로 숨기기만 → 실제 제거 선택지 추가)
+### Phase 9.1 — Hook 생성 폼 [백로그]
+- [ ] `+ 새 Hook` 인라인 폼 (event type / matcher / command 입력)
 - [ ] Hook 명령어 인라인 편집
-- [ ] Hook 유형 필터 (PreToolUse / PostToolUse)
-
-_Permissions 섹션 (신규)_
-- [ ] `settings.json`의 `permissions.allow` / `permissions.deny` 배열 표시
-- [ ] 항목 추가/삭제 (Bash, Read, Write 등 tool 패턴)
-- [ ] 글로벌 vs 프로젝트 오버라이드 비교 뷰
-
-_기타 설정_
-- [ ] `autoUpdates`, `theme`, `preferredNotificationChannel` 등 키-값 나열
-- [ ] 값 인라인 편집 (String/Bool/Int 타입 자동 감지)
-- [ ] 변경 사항 저장 전 diff 미리보기
-
-**수정 파일:**
-- `HarnessScanner.swift` — permissions 파싱 추가
-- `HarnessManager.swift` (신규 또는 기존 확장) — hook/permission CRUD
-- `SettingsView.swift` (신규) — 독립 패널 UI
 
 ---
 

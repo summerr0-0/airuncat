@@ -47,6 +47,112 @@ enum HarnessManager {
         return updated
     }
 
+    // MARK: - Permission add/remove
+
+    static func addPermission(pattern: String, kind: PermissionKind, in info: HarnessInfo) -> HarnessInfo {
+        var updated = info
+        guard
+            let data = try? Data(contentsOf: URL(fileURLWithPath: info.settingsPath)),
+            var json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else {
+            updated.writeError = "settings.json 읽기 실패"
+            return updated
+        }
+        if let current = HarnessScanner.mtime(of: info.settingsPath),
+           abs(current.timeIntervalSince(info.settingsMtime)) > 1 {
+            updated.writeError = "외부에서 변경됨 — 재스캔 후 다시 시도"
+            return updated
+        }
+
+        var perms = json["permissions"] as? [String: Any] ?? [:]
+        var list = perms[kind.rawValue] as? [String] ?? []
+        guard !list.contains(pattern) else {
+            updated.writeError = "이미 존재: \(pattern)"
+            return updated
+        }
+        list.append(pattern)
+        perms[kind.rawValue] = list.sorted()
+        json["permissions"] = perms
+
+        if let err = writeJSON(json, to: info.settingsPath) {
+            updated.writeError = err
+            return updated
+        }
+        updated.permissions = HarnessScanner.scanPermissions(settingsPath: info.settingsPath)
+        updated.settingsMtime = HarnessScanner.mtime(of: info.settingsPath) ?? info.settingsMtime
+        updated.writeError = nil
+        return updated
+    }
+
+    static func removePermission(_ entry: PermissionEntry, in info: HarnessInfo) -> HarnessInfo {
+        var updated = info
+        guard
+            let data = try? Data(contentsOf: URL(fileURLWithPath: info.settingsPath)),
+            var json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else {
+            updated.writeError = "settings.json 읽기 실패"
+            return updated
+        }
+        if let current = HarnessScanner.mtime(of: info.settingsPath),
+           abs(current.timeIntervalSince(info.settingsMtime)) > 1 {
+            updated.writeError = "외부에서 변경됨 — 재스캔 후 다시 시도"
+            return updated
+        }
+
+        guard var perms = json["permissions"] as? [String: Any] else { return updated }
+        var list = perms[entry.kind.rawValue] as? [String] ?? []
+        list.removeAll { $0 == entry.pattern }
+        perms[entry.kind.rawValue] = list
+        json["permissions"] = perms
+
+        if let err = writeJSON(json, to: info.settingsPath) {
+            updated.writeError = err
+            return updated
+        }
+        updated.permissions = HarnessScanner.scanPermissions(settingsPath: info.settingsPath)
+        updated.settingsMtime = HarnessScanner.mtime(of: info.settingsPath) ?? info.settingsMtime
+        updated.writeError = nil
+        return updated
+    }
+
+    // MARK: - Hook delete (disabled hooks only — extract-only, no re-insert)
+
+    static func deleteHook(hook: HookEntry, in info: HarnessInfo) -> HarnessInfo {
+        guard !hook.enabled else {
+            var updated = info
+            updated.writeError = "활성 hook은 삭제할 수 없습니다 (먼저 비활성화)"
+            return updated
+        }
+        var updated = info
+        guard
+            let data = try? Data(contentsOf: URL(fileURLWithPath: info.settingsPath)),
+            var json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else {
+            updated.writeError = "settings.json 읽기 실패"
+            return updated
+        }
+        if let current = HarnessScanner.mtime(of: info.settingsPath),
+           abs(current.timeIntervalSince(info.settingsMtime)) > 1 {
+            updated.writeError = "외부에서 변경됨 — 재스캔 후 다시 시도"
+            return updated
+        }
+
+        guard extractGroup(id: hook.id, from: &json, key: "_disabledHooks", event: hook.event) != nil else {
+            updated.writeError = "hook을 찾지 못했습니다 (id: \(hook.id))"
+            return updated
+        }
+
+        if let err = writeJSON(json, to: info.settingsPath) {
+            updated.writeError = err
+            return updated
+        }
+
+        updated.hooks.removeAll { $0.id == hook.id }
+        updated.settingsMtime = HarnessScanner.mtime(of: info.settingsPath) ?? info.settingsMtime
+        updated.writeError = nil
+        return updated
+    }
+
     // MARK: - JSON helpers
 
     private static func extractGroup(

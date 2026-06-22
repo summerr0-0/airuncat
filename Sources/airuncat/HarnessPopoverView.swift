@@ -6,6 +6,10 @@ struct HarnessPopoverView: View {
     @State private var createName = ""
     @State private var createScope: RuleScope = .project
     @State private var createError: String? = nil
+    @State private var showPermCreateForm = false
+    @State private var permPattern = ""
+    @State private var permKind: PermissionKind = .allow
+    @State private var permCreateError: String? = nil
     @State private var errors: [(id: UUID, message: String)] = []
 
     var body: some View {
@@ -19,11 +23,17 @@ struct HarnessPopoverView: View {
                         hooksSection
                     }
                     Divider().padding(.vertical, 4)
+                    permissionsSection
+                    if showPermCreateForm {
+                        Divider().padding(.vertical, 2)
+                        permCreateFormSection
+                    }
+                    Divider().padding(.vertical, 4)
                     footerRow
                 }
                 .padding(.vertical, 8)
             }
-            .frame(maxHeight: 360)
+            .frame(maxHeight: 480)
             if showCreateForm {
                 Divider()
                 createFormSection
@@ -98,11 +108,118 @@ struct HarnessPopoverView: View {
         VStack(alignment: .leading, spacing: 0) {
             sectionHeader("hooks", count: info.hooks.count, subtitle: "\(info.enabledHookCount) 활성")
             ForEach(info.hooks) { hook in
-                HookRow(hook: hook) { toggled in
-                    info = HarnessManager.toggle(hook: toggled, in: info)
+                HookRow(
+                    hook: hook,
+                    onToggle: { toggled in
+                        info = HarnessManager.toggle(hook: toggled, in: info)
+                    },
+                    onDelete: { toDelete in
+                        info = HarnessManager.deleteHook(hook: toDelete, in: info)
+                    }
+                )
+            }
+        }
+    }
+
+    // MARK: - Permissions
+
+    private var permissionsSection: some View {
+        let allows = info.permissions.filter { $0.kind == .allow }
+        let denies = info.permissions.filter { $0.kind == .deny }
+        let subtitle: String? = info.permissions.isEmpty ? nil : "allow \(allows.count) · deny \(denies.count)"
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                sectionHeader("permissions", count: info.permissions.count, subtitle: subtitle)
+                Spacer()
+                Button(showPermCreateForm ? "취소" : "+ 추가") {
+                    showPermCreateForm.toggle()
+                    if !showPermCreateForm { resetPermForm() }
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 9))
+                .foregroundColor(showPermCreateForm ? .secondary : .accentColor)
+                .padding(.trailing, 12)
+            }
+            if info.permissions.isEmpty {
+                Text("없음")
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 3)
+            } else {
+                ForEach(info.permissions) { entry in
+                    PermissionRow(entry: entry) {
+                        info = HarnessManager.removePermission(entry, in: info)
+                    }
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private var permCreateFormSection: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 6) {
+                Text("패턴")
+                    .font(.system(size: 10)).foregroundColor(.secondary)
+                    .frame(width: 28, alignment: .trailing)
+                TextField("Bash(npm *)", text: $permPattern)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 11, design: .monospaced))
+            }
+            HStack(spacing: 6) {
+                Text("종류")
+                    .font(.system(size: 10)).foregroundColor(.secondary)
+                    .frame(width: 28, alignment: .trailing)
+                HStack(spacing: 8) {
+                    permKindToggle("allow", kind: .allow, color: .green)
+                    permKindToggle("deny", kind: .deny, color: .red)
+                }
+            }
+            if let err = permCreateError {
+                Text(err).font(.system(size: 9)).foregroundColor(.red).padding(.leading, 34)
+            }
+            HStack {
+                Spacer()
+                Button("추가") {
+                    let result = HarnessManager.addPermission(pattern: permPattern.trimmingCharacters(in: .whitespaces), kind: permKind, in: info)
+                    if let err = result.writeError {
+                        permCreateError = err
+                    } else {
+                        info = result
+                        resetPermForm()
+                    }
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundColor(permPattern.isEmpty ? Color.secondary.opacity(0.5) : .accentColor)
+                .disabled(permPattern.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(Color.primary.opacity(0.03))
+    }
+
+    private func permKindToggle(_ label: String, kind: PermissionKind, color: Color) -> some View {
+        Button(action: { permKind = kind }) {
+            HStack(spacing: 3) {
+                Image(systemName: permKind == kind ? "circle.fill" : "circle")
+                    .font(.system(size: 8))
+                    .foregroundColor(permKind == kind ? color : .secondary.opacity(0.5))
+                Text(label)
+                    .font(.system(size: 10))
+                    .foregroundColor(permKind == kind ? color : .secondary)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func resetPermForm() {
+        showPermCreateForm = false
+        permPattern = ""
+        permKind = .allow
+        permCreateError = nil
     }
 
     private var footerRow: some View {
@@ -404,6 +521,7 @@ private struct RuleRow: View {
 private struct HookRow: View {
     let hook: HookEntry
     let onToggle: (HookEntry) -> Void
+    let onDelete: (HookEntry) -> Void
     @State private var hovering = false
 
     var body: some View {
@@ -435,9 +553,56 @@ private struct HookRow: View {
             }
 
             Spacer(minLength: 4)
+
+            // Disabled hook only: show delete button on hover
+            if hovering && !hook.enabled {
+                Button { onDelete(hook) } label: {
+                    Image(systemName: "trash")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary.opacity(0.7))
+                }
+                .buttonStyle(.plain)
+                .help("hook 완전 삭제")
+                .padding(.top, 1)
+            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 5)
+        .background(hovering ? Color.primary.opacity(0.04) : Color.clear)
+        .contentShape(Rectangle())
+        .onHover { hovering = $0 }
+    }
+}
+
+// MARK: - Permission Row
+
+private struct PermissionRow: View {
+    let entry: PermissionEntry
+    let onDelete: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: entry.kind == .allow ? "checkmark.circle.fill" : "minus.circle.fill")
+                .font(.system(size: 10))
+                .foregroundColor(entry.kind == .allow ? .green : .red)
+            Text(entry.pattern)
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundColor(.primary.opacity(0.85))
+                .lineLimit(1)
+            Spacer(minLength: 4)
+            if hovering {
+                Button(action: onDelete) {
+                    Image(systemName: "trash")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary.opacity(0.7))
+                }
+                .buttonStyle(.plain)
+                .help("권한 삭제")
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 3)
         .background(hovering ? Color.primary.opacity(0.04) : Color.clear)
         .contentShape(Rectangle())
         .onHover { hovering = $0 }

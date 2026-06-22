@@ -25,12 +25,23 @@ struct HookEntry: Identifiable {
     var enabled: Bool
 }
 
+enum PermissionKind: String {
+    case allow, deny
+}
+
+struct PermissionEntry: Identifiable {
+    let id: String          // "\(kind.rawValue):\(pattern)" — allow/deny 양쪽 동일 pattern 허용
+    let pattern: String
+    let kind: PermissionKind
+}
+
 struct HarnessInfo {
     let projectPath: String
     let settingsPath: String
     var settingsMtime: Date
     var rules: [RuleFile]
     var hooks: [HookEntry]
+    var permissions: [PermissionEntry]
     var omcPresent: Bool
     var writeError: String?
 
@@ -61,6 +72,7 @@ enum HarnessScanner {
 
         let rules = scanRules(claudeDir: claudeDir)
         let hooks = scanHooks(settingsPath: settingsPath)
+        let permissions = scanPermissions(settingsPath: settingsPath)
         let omcPresent = detectOMC(cwd: cwd)
 
         return HarnessInfo(
@@ -69,6 +81,7 @@ enum HarnessScanner {
             settingsMtime: settingsMtime,
             rules: rules,
             hooks: hooks,
+            permissions: permissions,
             omcPresent: omcPresent
         )
     }
@@ -150,6 +163,23 @@ enum HarnessScanner {
         let input = Data((event + matcher + command).utf8)
         let digest = SHA256.hash(data: input)
         return digest.prefix(4).map { String(format: "%02x", $0) }.joined()
+    }
+
+    static func scanPermissions(settingsPath: String) -> [PermissionEntry] {
+        guard
+            let data = try? Data(contentsOf: URL(fileURLWithPath: settingsPath)),
+            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let perms = json["permissions"] as? [String: Any]
+        else { return [] }
+
+        var result: [PermissionEntry] = []
+        for kind in [PermissionKind.allow, .deny] {
+            let patterns = perms[kind.rawValue] as? [String] ?? []
+            result += patterns.sorted().map {
+                PermissionEntry(id: "\(kind.rawValue):\($0)", pattern: $0, kind: kind)
+            }
+        }
+        return result
     }
 
     private static func detectOMC(cwd: String) -> Bool {

@@ -3,6 +3,18 @@ import Foundation
 enum AI { case claude, gemini }
 
 enum SkillToggler {
+
+    /// Canonical skill name normalization: lowercase, spaces/underscores → hyphens, strip edge hyphens.
+    static func sanitizeName(_ raw: String) -> String {
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyz0123456789")
+        let chars = raw.lowercased().unicodeScalars.compactMap { c -> Character? in
+            if allowed.contains(c) { return Character(c) }
+            if c == " " || c == "_" || c == "-" { return "-" }
+            return nil
+        }
+        return String(chars).trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+    }
+
     // MARK: - Enable (create symlink)
 
     /// Creates a symlink from the commands dir to the local skill file.
@@ -90,7 +102,7 @@ enum SkillToggler {
             catch { return (nil, "디렉토리 생성 실패: \(error.localizedDescription)") }
         }
 
-        let stem = name.lowercased().replacingOccurrences(of: "_", with: "-")
+        let stem = SkillToggler.sanitizeName(name)
         let sourcePath = (skillsDir as NSString).appendingPathComponent("\(stem).md")
 
         let df = DateFormatter()

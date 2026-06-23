@@ -67,19 +67,42 @@ enum FrontmatterParser {
                     .filter { !$0.isEmpty }
                 i += 1
             } else if rawVal.isEmpty {
-                // Block sequence:
-                //   key:
-                //     - value
-                var items: [String] = []
                 i += 1
-                while i < lines.count {
-                    let next = lines[i].trimmingCharacters(in: .whitespaces)
-                    if next.hasPrefix("- ") {
-                        items.append(String(next.dropFirst(2)).trimmingCharacters(in: .whitespaces))
+                // Peek at the next non-empty line to decide block type
+                var j = i
+                while j < lines.count && lines[j].trimmingCharacters(in: .whitespaces).isEmpty { j += 1 }
+                let peek = j < lines.count ? lines[j] : ""
+
+                if peek.trimmingCharacters(in: .whitespaces).hasPrefix("- ") {
+                    // Block sequence:  key:\n  - value
+                    var items: [String] = []
+                    while i < lines.count {
+                        let next = lines[i].trimmingCharacters(in: .whitespaces)
+                        if next.hasPrefix("- ") {
+                            items.append(String(next.dropFirst(2)).trimmingCharacters(in: .whitespaces))
+                            i += 1
+                        } else { break }
+                    }
+                    result[key] = items
+                } else if peek.hasPrefix("  ") || peek.hasPrefix("\t") {
+                    // Nested dict:  key:\n  nestedKey: value
+                    var nested: [String: Any] = [:]
+                    while i < lines.count {
+                        let rawLine = lines[i]
+                        guard rawLine.hasPrefix("  ") || rawLine.hasPrefix("\t") else { break }
+                        let stripped = rawLine.trimmingCharacters(in: .whitespaces)
+                        guard !stripped.isEmpty, let cr = stripped.range(of: ":") else { i += 1; continue }
+                        let nKey = String(stripped[..<cr.lowerBound]).trimmingCharacters(in: .whitespaces)
+                        var nVal = String(stripped[cr.upperBound...]).trimmingCharacters(in: .whitespaces)
+                        if (nVal.hasPrefix("\"") && nVal.hasSuffix("\"")) ||
+                           (nVal.hasPrefix("'")  && nVal.hasSuffix("'")) {
+                            nVal = String(nVal.dropFirst().dropLast())
+                        }
+                        nested[nKey] = nVal
                         i += 1
-                    } else { break }
+                    }
+                    result[key] = nested
                 }
-                result[key] = items
             } else if rawVal == "true" {
                 result[key] = true; i += 1
             } else if rawVal == "false" {

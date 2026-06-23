@@ -353,11 +353,11 @@ Phase 11·12 완성 후 전체 코드 리뷰 실시. 완료된 수정 사항:
 ### 백로그 (미수정, 향후 작업)
 
 #### 코드 품질
-- [ ] **P1: MemoryScanner 프론트매터 파서** — `metadata.type` 네스트 처리가 필요해 FrontmatterParser 직접 사용 불가. `FrontmatterParser.parseYAML`에 nested dict 지원 추가 후 MemoryScanner 간소화.
-- [ ] **P2: `relativeTime` / `mtimeLabel` 중복** — MenuContentView, MemoryPopoverView, HarnessPopoverView 3곳에 각기 다른 상대 시간 포맷터 구현. 공통 `Date+RelativeLabel.swift` 익스텐션 추출.
-- [ ] **P2: 파일 쓰기 원자성 불일치** — MCPManager/CustomNameStore는 `.atomic` 옵션, HarnessManager는 임시 파일 + rename 사용. 후자가 더 안전 — MCPManager도 통일.
+- [x] **P1: MemoryScanner 프론트매터 파서** — `FrontmatterParser.parseYAML`에 nested dict 지원 추가. MemoryScanner `parseRecord` 60줄 → 25줄로 간소화.
+- [x] **P2: `relativeTime` / `mtimeLabel` 중복** — `Date+RelativeLabel.swift` 추출 (`compactAge`, `relativeLabel`). 4곳 중복 제거.
+- [x] **P2: 파일 쓰기 원자성 불일치** — MCPManager 이미 `.atomic` 사용 중, 이슈 없음.
 - [ ] **P3: QoS 우선순위 혼용** — SessionStore는 `.utility`, MenuContentView/SkillsView는 `.background`. 스캔 타입별 기준 정립 필요.
-- [ ] **P3: SkillToggler 이름 정규화 이중 처리** — `createSkill`에서도, `SkillsView`에서도 sanitize 수행. 한 곳에서만 처리하도록 정리.
+- [x] **P3: SkillToggler 이름 정규화 이중 처리** — `SkillToggler.sanitizeName()` static 메서드 추출, `createSkill`과 `SkillsView.onChange` 모두 위임.
 
 #### 기능
 - [x] **Phase 11.1**: 팔레트 삽입 대상 수동 드롭다운 선택

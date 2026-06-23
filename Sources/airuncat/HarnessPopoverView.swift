@@ -441,7 +441,7 @@ private struct RuleRow: View {
                 Spacer(minLength: 4)
 
                 VStack(alignment: .trailing, spacing: 4) {
-                    Text(mtimeLabel(rule.mtime))
+                    Text(rule.mtime.relativeLabel)
                         .font(.system(size: 9))
                         .foregroundColor(.secondary.opacity(0.6))
 
@@ -506,14 +506,6 @@ private struct RuleRow: View {
             .map { String($0) }
     }
 
-    private func mtimeLabel(_ date: Date) -> String {
-        let cal = Calendar.current
-        if cal.isDateInToday(date) { return "오늘" }
-        if cal.isDateInYesterday(date) { return "어제" }
-        let days = cal.dateComponents([.day], from: date, to: Date()).day ?? 0
-        if days < 30 { return "\(days)일 전" }
-        return "\(days / 30)개월 전"
-    }
 }
 
 // MARK: - Hook Row

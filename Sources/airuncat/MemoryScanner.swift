@@ -51,66 +51,30 @@ enum MemoryScanner {
 
     private static func parseRecord(path: String) -> MemoryRecord? {
         let fileMtime = FileIOHelper.mtime(at: path)
-
         let stem = String((path as NSString).lastPathComponent.dropLast(3))
 
         guard let content = try? String(contentsOfFile: path, encoding: .utf8) else {
             return MemoryRecord(id: stem, description: "", type: .unknown, path: path, mtime: fileMtime)
         }
 
-        let lines = content.components(separatedBy: .newlines)
-        guard lines.first?.trimmingCharacters(in: .whitespaces) == "---" else {
+        let (fields, _) = FrontmatterParser.parse(content)
+        guard !fields.isEmpty else {
             return MemoryRecord(id: stem, description: "", type: .unknown, path: path, mtime: fileMtime)
         }
 
-        var name = stem
-        var description = ""
-        var type: MemoryType = .unknown
-        var inFrontmatter = false
-        var inMetadata = false
+        let name        = (fields["name"]        as? String) ?? stem
+        let description = (fields["description"] as? String) ?? ""
 
-        for line in lines.dropFirst() {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if trimmed == "---" {
-                if inFrontmatter { break }
-                inFrontmatter = true
-                continue
-            }
-            guard inFrontmatter else { continue }
-
-            if line.hasPrefix("metadata:") {
-                inMetadata = true
-                continue
-            }
-
-            if inMetadata {
-                // Nested keys use 2-space indent
-                if line.hasPrefix("  ") {
-                    let stripped = line.trimmingCharacters(in: .whitespaces)
-                    if stripped.hasPrefix("type:") {
-                        let val = stripped.dropFirst(5).trimmingCharacters(in: .whitespaces)
-                            .trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
-                        type = MemoryType(rawValue: val) ?? .unknown
-                    }
-                } else {
-                    inMetadata = false
-                }
-            }
-
-            if trimmed.hasPrefix("name:") {
-                name = trimmed.dropFirst(5).trimmingCharacters(in: .whitespaces)
-                    .trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
-            } else if trimmed.hasPrefix("description:") {
-                description = trimmed.dropFirst(12).trimmingCharacters(in: .whitespaces)
-                    .trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
-            } else if trimmed.hasPrefix("type:") && !inMetadata {
-                // Top-level type fallback (when metadata block absent)
-                let val = trimmed.dropFirst(5).trimmingCharacters(in: .whitespaces)
-                    .trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
-                if type == .unknown { type = MemoryType(rawValue: val) ?? .unknown }
-            }
+        // metadata.type takes precedence; fall back to top-level type
+        let typeStr: String
+        if let meta = fields["metadata"] as? [String: Any], let t = meta["type"] as? String {
+            typeStr = t
+        } else {
+            typeStr = (fields["type"] as? String) ?? ""
         }
 
-        return MemoryRecord(id: name, description: description, type: type, path: path, mtime: fileMtime)
+        return MemoryRecord(id: name, description: description,
+                            type: MemoryType(rawValue: typeStr) ?? .unknown,
+                            path: path, mtime: fileMtime)
     }
 }

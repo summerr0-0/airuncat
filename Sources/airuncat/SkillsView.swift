@@ -185,14 +185,7 @@ struct SkillsView: View {
                     .textFieldStyle(.plain)
                     .font(.system(size: 12, design: .monospaced))
                     .onChange(of: createName) {
-                        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyz0123456789")
-                        let s = createName.lowercased().unicodeScalars.compactMap { c -> Character? in
-                            if allowed.contains(c) { return Character(c) }
-                            if c == " " || c == "_" { return "-" }
-                            if c == "-" { return "-" }
-                            return nil
-                        }
-                        let sanitized = String(s).trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+                        let sanitized = SkillToggler.sanitizeName(createName)
                         if sanitized != createName { createName = sanitized }
                     }
             }

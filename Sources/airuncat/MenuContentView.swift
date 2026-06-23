@@ -448,13 +448,7 @@ private struct SessionRow: View {
         }
     }
 
-    private var relativeTime: String {
-        let s = Int(Date().timeIntervalSince(session.lastActivity))
-        if s < 60 { return "\(max(s, 0))s" }
-        if s < 3600 { return "\(s / 60)m" }
-        if s < 86400 { return "\(s / 3600)h" }
-        return "\(s / 86400)d"
-    }
+    private var relativeTime: String { session.lastActivity.compactAge }
 }
 
 // MARK: - Tag Button (NSPopover)

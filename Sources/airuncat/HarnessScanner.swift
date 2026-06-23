@@ -60,8 +60,7 @@ struct HarnessInfo {
 // MARK: - Scanner
 
 enum HarnessScanner {
-    static let globalRulesDir: String =
-        (NSHomeDirectory() as NSString).appendingPathComponent(".claude/rules")
+    static var globalRulesDir: String { PathConstants.claudeRules }
 
     static func scan(cwd: String) -> HarnessInfo? {
         let claudeDir = (cwd as NSString).appendingPathComponent(".claude")

@@ -55,12 +55,8 @@ struct SessionInfo: Identifiable {
 /// Reads Claude Code session transcripts from ~/.claude/projects/*/*.jsonl
 struct SessionScanner {
 
-    private static let smallFileLimit = 4_000_000          // parse whole file under this
-    private static let chunkBytes = 512_000                // head/tail window for big files
-
     static var projectsDir: URL {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".claude/projects", isDirectory: true)
+        URL(fileURLWithPath: PathConstants.claudeProjects, isDirectory: true)
     }
 
     /// Scan all sessions. `cache` is reused across ticks: unchanged files
@@ -108,16 +104,7 @@ struct SessionScanner {
     private static func parse(path: String, size: Int, mtime: Date) -> SessionInfo? {
         let url = URL(fileURLWithPath: path)
 
-        let forwardLines: [String]
-        let backwardLines: [String]
-        if size <= smallFileLimit, let data = try? Data(contentsOf: url) {
-            let lines = splitLines(data)
-            forwardLines = lines
-            backwardLines = lines
-        } else {
-            forwardLines = splitLines(headData(url: url, maxBytes: chunkBytes))
-            backwardLines = splitLines(tailData(url: url, size: size, maxBytes: chunkBytes))
-        }
+        let (forwardLines, backwardLines) = FileIOHelper.readLines(url: url, size: size)
 
         var title = ""
         var firstInstruction = ""
@@ -127,7 +114,7 @@ struct SessionScanner {
 
         // Forward pass: title, first real instruction, cwd/branch, rough message count.
         for line in forwardLines {
-            guard let obj = json(line) else { continue }
+            guard let obj = FileIOHelper.jsonObject(line) else { continue }
             let type = obj["type"] as? String
             switch type {
             case "ai-title":
@@ -161,7 +148,7 @@ struct SessionScanner {
         var foundSkillCheck = false           // true once we've examined the most recent Skill call
 
         for line in backwardLines.reversed() {
-            guard let obj = json(line) else { continue }
+            guard let obj = FileIOHelper.jsonObject(line) else { continue }
             captureContext(obj, cwd: &cwd, branch: &gitBranch)
             let evType = obj["type"] as? String ?? ""
             guard evType == "user" || evType == "assistant" else { continue }
@@ -219,9 +206,9 @@ struct SessionScanner {
                 foundLastUser = true
                 if let msg = obj["message"] as? [String: Any],
                    let text = userText(msg) {
-                    let line1 = firstLine(text)
+                    let line1 = FileIOHelper.firstLine(text)
                     if isRealInstruction(line1) {
-                        lastUserMessage = trim(line1, 100)
+                        lastUserMessage = FileIOHelper.trim(line1, 100)
                     }
                 }
             }
@@ -250,15 +237,15 @@ struct SessionScanner {
         return SessionInfo(
             id: path,
             sessionId: sessionId,
-            title: trim(title, 70),
+            title: FileIOHelper.trim(title, 70),
             customName: nil,
             projectName: project,
             cwd: cwd,
             gitBranch: gitBranch,
-            firstInstruction: trim(firstInstruction, 200),
+            firstInstruction: FileIOHelper.trim(firstInstruction, 200),
             lastUserMessage: lastUserMessage,
             toolName: toolName,
-            toolDetail: trim(toolDetail, 60),
+            toolDetail: FileIOHelper.trim(toolDetail, 60),
             activeSkill: activeSkill,
             lastActivity: mtime,
             messageCount: messageCount,
@@ -301,7 +288,7 @@ struct SessionScanner {
         func str(_ k: String) -> String { (input[k] as? String) ?? "" }
         switch name {
         case "Bash":
-            return firstLine(str("command"))
+            return FileIOHelper.firstLine(str("command"))
         case "Read", "Edit", "Write", "NotebookEdit":
             return basename(str("file_path"))
         case "Grep":
@@ -346,45 +333,7 @@ struct SessionScanner {
         return .dev
     }
 
-    // MARK: - Low-level IO helpers
-
-    private static func json(_ line: String) -> [String: Any]? {
-        guard let data = line.data(using: .utf8),
-              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        else { return nil }
-        return obj
-    }
-
-    private static func splitLines(_ data: Data) -> [String] {
-        guard let s = String(data: data, encoding: .utf8) else { return [] }
-        return s.split(separator: "\n", omittingEmptySubsequences: true).map(String.init)
-    }
-
-    private static func headData(url: URL, maxBytes: Int) -> Data {
-        guard let fh = try? FileHandle(forReadingFrom: url) else { return Data() }
-        defer { try? fh.close() }
-        return (try? fh.read(upToCount: maxBytes)) ?? Data()
-    }
-
-    private static func tailData(url: URL, size: Int, maxBytes: Int) -> Data {
-        guard let fh = try? FileHandle(forReadingFrom: url) else { return Data() }
-        defer { try? fh.close() }
-        let offset = UInt64(max(0, size - maxBytes))
-        try? fh.seek(toOffset: offset)
-        return (try? fh.readToEnd()) ?? Data()
-    }
-
-    private static func firstLine(_ s: String) -> String {
-        s.split(separator: "\n").first.map(String.init)?
-            .trimmingCharacters(in: .whitespaces) ?? ""
-    }
-
     private static func basename(_ s: String) -> String {
         s.isEmpty ? "" : (s as NSString).lastPathComponent
-    }
-
-    private static func trim(_ s: String, _ n: Int) -> String {
-        let t = s.trimmingCharacters(in: .whitespacesAndNewlines)
-        return t.count <= n ? t : String(t.prefix(n)) + "…"
     }
 }

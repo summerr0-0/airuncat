@@ -104,9 +104,9 @@ struct MCPView: View {
                 TextField("my-server", text: $createName)
                     .textFieldStyle(.plain)
                     .font(.system(size: 12, design: .monospaced))
-                    .onChange(of: createName) { v in
-                        let s = v.lowercased().filter { $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" }
-                        if s != v { createName = s }
+                    .onChange(of: createName) {
+                        let s = createName.lowercased().filter { $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" }
+                        if s != createName { createName = s }
                     }
             }
             HStack(spacing: 8) {

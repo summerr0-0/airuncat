@@ -1,8 +1,7 @@
 import Foundation
 
 enum SkillManager {
-    static let skillsDir: String =
-        (NSHomeDirectory() as NSString).appendingPathComponent(".airuncat/skills")
+    static var skillsDir: String { PathConstants.skills }
 
     // MARK: - Migration
 
@@ -14,7 +13,7 @@ enum SkillManager {
             .appendingPathComponent("Obsidian/document/06_AI_Config")
         guard let items = try? fm.contentsOfDirectory(atPath: obsidianDir) else { return }
         for filename in items.sorted() {
-            guard filename.hasPrefix("SKILL_") && filename.hasSuffix(".md") else { continue }
+            guard filename.hasSuffix(".md") else { continue }
             let destPath = (skillsDir as NSString).appendingPathComponent(filename)
             guard !fm.fileExists(atPath: destPath) else { continue }
             let srcPath = (obsidianDir as NSString).appendingPathComponent(filename)

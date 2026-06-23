@@ -92,7 +92,7 @@ struct PromptLibraryView: View {
             initialLoaded = true
         }
         .onAppear { scanID = UUID() }
-        .onChange(of: searchText) { _ in insertError = nil }
+        .onChange(of: searchText) { insertError = nil }
     }
 
     // MARK: - Static Views
@@ -286,7 +286,7 @@ struct PromptLibraryView: View {
                     TextField("kebab-case (예: my-prompt)", text: $createId)
                         .font(.system(size: 11))
                         .textFieldStyle(.plain)
-                        .onChange(of: createId) { val in sanitizeId(val) }
+                        .onChange(of: createId) { sanitizeId(createId) }
                 }
                 HStack(spacing: 6) {
                     Text("제목")

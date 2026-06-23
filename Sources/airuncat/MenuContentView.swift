@@ -3,7 +3,7 @@ import AppKit
 
 // MARK: - Tab
 
-private enum Tab { case sessions, skills, prompts, mcp }
+private enum Tab { case sessions, skills, prompts, mcp, stats }
 
 // MARK: - Filter Mode
 
@@ -17,6 +17,7 @@ private enum FilterMode: Equatable {
 struct MenuContentView: View {
     @ObservedObject var store: SessionStore
     @ObservedObject var tagStore: TagStore
+    @StateObject private var statsStore = StatsStore()
     @State private var activeTab: Tab = .sessions
     @State private var filter: FilterMode = .all
 
@@ -29,17 +30,19 @@ struct MenuContentView: View {
             if activeTab == .sessions {
                 sessionsContent
             } else if activeTab == .skills {
-                SkillsView()
+                SkillsView(projectCwd: activeSessionCwd)
             } else if activeTab == .prompts {
                 PromptLibraryView(store: store)
-            } else {
+            } else if activeTab == .mcp {
                 MCPView()
+            } else {
+                StatsView(statsStore: statsStore)
             }
             Divider()
             footer
         }
         .frame(width: 320)
-        .onChange(of: tagStore.sessionTags) { _ in
+        .onChange(of: tagStore.sessionTags) {
             if case .tag(let t) = filter, !usedTags.contains(t) {
                 filter = .all
             }
@@ -54,6 +57,7 @@ struct MenuContentView: View {
             TabButton("Skills", active: activeTab == .skills) { activeTab = .skills }
             TabButton("Prompts", active: activeTab == .prompts) { activeTab = .prompts }
             TabButton("MCP", active: activeTab == .mcp) { activeTab = .mcp }
+            TabButton("Stats", active: activeTab == .stats) { activeTab = .stats }
             Spacer()
         }
         .padding(.horizontal, 8)
@@ -193,6 +197,12 @@ struct MenuContentView: View {
             }
         }
         return result
+    }
+
+    private var activeSessionCwd: String? {
+        let sessions = store.visibleSessions
+        return (sessions.first { $0.status == .active && $0.aiKind == .claude }
+             ?? sessions.first { $0.status == .idle && $0.aiKind == .claude })?.cwd
     }
 
     private var filteredSessions: [SessionInfo] {

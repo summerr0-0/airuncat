@@ -3,9 +3,7 @@ import Foundation
 /// Reads Gemini CLI session transcripts from ~/.gemini/tmp/*/chats/*.jsonl
 struct GeminiScanner {
 
-    private static let smallFileLimit = 4_000_000
-    private static let chunkBytes    = 512_000
-    private static let maxAge: TimeInterval = 48 * 3600   // 48 hours
+    private static let maxAge: TimeInterval = 48 * 3600
 
     /// Absolute path to the gemini binary; nil if not installed.
     static let geminiPath: String? = {
@@ -25,8 +23,7 @@ struct GeminiScanner {
     static var isAvailable: Bool { geminiPath != nil }
 
     static var tmpDir: URL {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".gemini/tmp", isDirectory: true)
+        URL(fileURLWithPath: PathConstants.geminiTmp, isDirectory: true)
     }
 
     static func scan(cache: inout [String: (mtime: Date, info: SessionInfo)]) -> [SessionInfo] {
@@ -77,21 +74,12 @@ struct GeminiScanner {
     private static func parse(path: String, size: Int, mtime: Date, projectDir: URL) -> SessionInfo? {
         let url = URL(fileURLWithPath: path)
 
-        let forwardLines: [String]
-        let backwardLines: [String]
-        if size <= smallFileLimit, let data = try? Data(contentsOf: url) {
-            let lines = splitLines(data)
-            forwardLines = lines
-            backwardLines = lines
-        } else {
-            forwardLines = splitLines(headData(url: url, maxBytes: chunkBytes))
-            backwardLines = splitLines(tailData(url: url, size: size, maxBytes: chunkBytes))
-        }
+        let (forwardLines, backwardLines) = FileIOHelper.readLines(url: url, size: size)
 
         guard !forwardLines.isEmpty else { return nil }
 
         // Line 1 must be the header with sessionId
-        guard let header = jsonObj(forwardLines[0]),
+        guard let header = FileIOHelper.jsonObject(forwardLines[0]),
               let sessionId = header["sessionId"] as? String,
               !sessionId.isEmpty else { return nil }
 
@@ -103,7 +91,7 @@ struct GeminiScanner {
 
         // Forward pass: extract cwd + title
         for line in forwardLines.dropFirst() {
-            guard let obj = jsonObj(line) else { continue }
+            guard let obj = FileIOHelper.jsonObject(line) else { continue }
 
             // Handle legacy $set batch format (contains all initial messages)
             if let setObj = obj["$set"] as? [String: Any],
@@ -126,7 +114,7 @@ struct GeminiScanner {
                         cwd = extracted; cwdFound = true
                     }
                     if !titleFound, isRealInstruction(text) {
-                        title = trim(text, 200); titleFound = true
+                        title = FileIOHelper.trim(text, 200); titleFound = true
                     }
                 }
             } else if type == "gemini" {
@@ -154,7 +142,7 @@ struct GeminiScanner {
         let fileKeys: Set<String> = ["file_path", "path"]
 
         for line in backwardLines.reversed() {
-            guard let obj = jsonObj(line) else { continue }
+            guard let obj = FileIOHelper.jsonObject(line) else { continue }
             let type = obj["type"] as? String
 
             if !foundWorkState {
@@ -165,9 +153,9 @@ struct GeminiScanner {
             if !foundLastUser, type == "user" {
                 foundLastUser = true
                 if let text = userText(obj) {
-                    let line1 = firstLine(text)
+                    let line1 = FileIOHelper.firstLine(text)
                     if isRealInstruction(line1) {
-                        lastUserMessage = trim(line1, 100)
+                        lastUserMessage = FileIOHelper.trim(line1, 100)
                     }
                 }
             }
@@ -194,7 +182,7 @@ struct GeminiScanner {
                         detail = args.keys.sorted().compactMap { args[$0] as? String }.first ?? ""
                     }
                     toolName = name
-                    toolDetail = trim(detail, 60)
+                    toolDetail = FileIOHelper.trim(detail, 60)
                     foundTool = true
                 }
             }
@@ -257,41 +245,4 @@ struct GeminiScanner {
         return true
     }
 
-    private static func firstLine(_ s: String) -> String {
-        s.split(separator: "\n").first.map(String.init)?
-            .trimmingCharacters(in: .whitespaces) ?? ""
-    }
-
-    // MARK: - IO helpers
-
-    private static func jsonObj(_ line: String) -> [String: Any]? {
-        guard let data = line.data(using: .utf8),
-              let obj  = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        else { return nil }
-        return obj
-    }
-
-    private static func splitLines(_ data: Data) -> [String] {
-        guard let s = String(data: data, encoding: .utf8) else { return [] }
-        return s.split(separator: "\n", omittingEmptySubsequences: true).map(String.init)
-    }
-
-    private static func headData(url: URL, maxBytes: Int) -> Data {
-        guard let fh = try? FileHandle(forReadingFrom: url) else { return Data() }
-        defer { try? fh.close() }
-        return (try? fh.read(upToCount: maxBytes)) ?? Data()
-    }
-
-    private static func tailData(url: URL, size: Int, maxBytes: Int) -> Data {
-        guard let fh = try? FileHandle(forReadingFrom: url) else { return Data() }
-        defer { try? fh.close() }
-        let offset = UInt64(max(0, size - maxBytes))
-        try? fh.seek(toOffset: offset)
-        return (try? fh.readToEnd()) ?? Data()
-    }
-
-    private static func trim(_ s: String, _ n: Int) -> String {
-        let t = s.trimmingCharacters(in: .whitespacesAndNewlines)
-        return t.count <= n ? t : String(t.prefix(n)) + "…"
-    }
 }

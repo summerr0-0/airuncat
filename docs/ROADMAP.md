@@ -5,7 +5,7 @@
 
 - 컨셉: AI가 바쁠수록 고양이가 빨리 뛰고, 다 쉬면 앉아서 존다 (RunCat 영감)
 
-## 현재 상태 (v0.6)
+## 현재 상태 (v0.7)
 
 - Swift / SwiftUI MenuBarExtra 앱, Command Line Tools만으로 빌드 (`build.sh`)
 - 세션 모니터: Claude + Gemini CLI 세션 통합 관제 (AIKind 배지, live process 필터)
@@ -263,14 +263,14 @@ airuncat GUI로 완전 대체하기 위한 Phase 6+ 계획.
 
 ---
 
-### Phase 11 — 퀵 팔레트 [백로그]
+### Phase 11 — 퀵 팔레트 [완료]
 
 OMC의 Tier-0 workflows(autopilot, ultrawork, ralph 등)를 단축키 하나로 실행하는
-스포트라이트 스타일 글로벌 팔레트. airuncat의 킬러 피처 후보.
+스포트라이트 스타일 글로벌 팔레트.
 
 **동작:**
 ```
-⌥Space  →  팔레트 창 표시
+⌥Space  →  팔레트 창 표시 (토글)
 ────────────────────────────────
   /            검색: 스킬 + 프롬프트 통합
 ────────────────────────────────
@@ -280,76 +280,101 @@ OMC의 Tier-0 workflows(autopilot, ultrawork, ralph 등)를 단축키 하나로 
   > git-commit        [Prompts]
 ────────────────────────────────
   삽입 대상: airuncat  ←  현재 활성 세션
-  [Enter] 삽입   [⌘Enter] 복사   [Esc] 닫기
+  [↩] 삽입   [⌘↩] 복사   [Esc] 닫기
 ```
 
-**기능:**
-- [ ] 글로벌 단축키 등록 — `CGEvent` tap 또는 `NSEvent.addGlobalMonitorForEvents` (`⌥Space` 기본값, 사용자 설정 가능)
-- [ ] 플로팅 패널 (`NSPanel`, `NSWindowStyleMask.nonactivatingPanel`) — 다른 앱 포커스 유지
-- [ ] 스킬 + 프롬프트 통합 검색 (실시간 fuzzy 필터)
-- [ ] 최근 사용 항목 상단 정렬 (LocalStorage: `~/.airuncat/palette-history.json`)
-- [ ] `Enter` → 현재 활성 iTerm 세션에 텍스트 주입 (`ITermController.insertText`)
-- [ ] `⌘Enter` → 클립보드 복사만 (주입 없이)
-- [ ] 삽입 대상 세션 자동 감지 (가장 최근 활성 세션) + 수동 선택 드롭다운
-- [ ] 스킬 선택 시 `/skill-name` 형태로 주입 (Claude 세션이면 바로 slash 커맨드 실행)
-- [ ] 팔레트 열기 시 세션 목록 최신화
+**구현:**
+- [x] `CGEvent` tap 기반 `⌥Space` 글로벌 단축키 (접근성 권한 재사용)
+- [x] `NSPanel` 플로팅 창 (floating level, canJoinAllSpaces, hidesOnDeactivate=false)
+- [x] 스킬 + 프롬프트 통합 검색 — 관련도(prefix>contains) → 최근 사용 → 알파벳 정렬
+- [x] 최근 사용 이력 — `~/.airuncat/palette-history.json` (최대 50건, 원자 쓰기)
+- [x] `↩` → NSPasteboard + `ITermController.insertText(cwd:)` + 자동 닫기
+- [x] `⌘↩` → 클립보드 복사만
+- [x] 삽입 대상 자동 감지 (active > idle, Claude, lastActivity 최신)
+- [x] 스킬 주입 시 `"/name\n"` — Claude CLI slash command 즉시 실행
+- [x] 팔레트 열 때마다 최신 스킬·프롬프트 재스캔
+- [x] `Package.swift` macOS 14로 상향 (`.onKeyPress` 사용)
+- [x] `ApplicationController` — CGEvent tap `CFMachPort` 생명주기 관리
 
 **신규 파일:**
-- `QuickPalette.swift` — `NSPanel` 기반 플로팅 창
-- `GlobalShortcut.swift` — `CGEvent` tap 글로벌 단축키 등록·해제
+- `QuickPalette.swift` — `NSPanel` + SwiftUI `PaletteView` + 키 처리
+- `GlobalShortcut.swift` — CGEvent tap 등록·해제 (`HandlerBox` 타입 안전)
 - `PaletteViewModel.swift` — 검색·필터·히스토리 로직
+- `ApplicationController.swift` — tap 생명주기 `@StateObject` 관리
 
-**권한:** `com.apple.security.temporary-exception.mach-lookup` 또는 접근성 권한(이미 있음)으로 글로벌 이벤트 모니터 가능.
+**백로그:**
+- [ ] Phase 11.1: 삽입 대상 수동 드롭다운 선택
+- [ ] Phase 11.2: 사용자 정의 단축키 설정 UI
 
 ---
 
-### Phase 12 — 세션 통계 [백로그]
+### Phase 12 — 세션 통계 [완료]
 
-OMC의 `session-pattern-analyzer`를 시각화한다.
-JSONL 파싱 결과를 집계해 사용 패턴을 한눈에.
+JSONL 파싱 집계로 Claude 세션 사용 패턴 시각화.
 
-**화면:**
-```
-[Stats]  이번 주                            [일/주/월]
-────────────────────────────────────────
-  Claude  47세션  ████████████  12.4h
-  Gemini  12세션  ███           3.1h
-────────────────────────────────────────
-  활동 히트맵 (시간대별)
-  00 01 02 03 04 05 06 07 08 09 10 11 ...
-  월 ░░░░░░░░░░░░████████████░░
-  화 ░░░░░░░░░████████████████░
-  ...
-────────────────────────────────────────
-  자주 쓴 스킬    /ultrawork 23회  /run-clawde 18회
-  자주 쓴 프롬프트 code-review 15회  git-commit 12회
-  평균 세션 길이  Claude 28분  Gemini 19분
-```
-
-**기능:**
-- [ ] `StatsScanner`: `~/.claude/projects/` 전체 JSONL 순회, 날짜·mtime 집계
-  - 일별 세션 수, 총 활동 시간 (mtime 델타 합산)
-  - 시간대별 활동 분포 (히트맵용 24×7 배열)
-  - 스킬 사용 빈도 (tool_use type=Skill 이벤트 집계)
-- [ ] 캐시 — `~/.airuncat/stats-cache.json` (날짜별, 신규 JSONL만 증분 업데이트)
-- [ ] 기간 필터 (일/주/월/전체)
-- [ ] Claude vs Gemini 분리 통계
-- [ ] 자주 쓴 스킬·프롬프트 top-N 목록
-- [ ] 평균 세션 지속 시간
-- [ ] Stats 탭 추가 (Sessions / Skills / Prompts / Stats)
-- [ ] 히트맵 컬러 — `accentColor` 명도 단계 (0=투명, 4=진함)
+**구현:**
+- [x] `StatsScanner`: `~/.claude/projects/` 전체 JSONL 순회, mtime 기반 증분 캐시
+  - 세션 수, 활동 시간 (이벤트 타임스탬프 기반, 120min 캡)
+  - 7×24 히트맵 배열 (mtime 기준 요일·시간대)
+  - 스킬 사용 빈도 (tool_use name=Skill 이벤트, 4MB 이하 전체 / 초과 시 head+tail)
+- [x] 캐시 — `~/.airuncat/stats-cache.json` (mtime 증분 업데이트, 원자 쓰기)
+- [x] 기간 필터 이번 주 / 이번 달 / 전체
+- [x] 자주 쓴 스킬 top-N 바 차트
+- [x] Stats 탭 추가 (Sessions / Skills / Prompts / MCP / Stats)
+- [x] 히트맵 컬러 — `accentColor.opacity(density)`, 셀 10×8pt
 
 **신규 파일:**
-- `StatsScanner.swift` — 집계 로직 (background Task)
-- `StatsStore.swift` — `@MainActor ObservableObject`, 캐시 관리
-- `StatsView.swift` — 히트맵 + 차트 UI
+- `StatsScanner.swift` — 집계 로직, cache IO
+- `StatsStore.swift` — `@MainActor ObservableObject`, period 필터
+- `StatsView.swift` — 기간 피커 + 요약 + 히트맵 + 스킬 바 차트
+
+**백로그:**
+- [ ] Phase 12.1: Gemini 세션 통계 통합 (Phase 4 이후)
+- [ ] Phase 12.2: 프롬프트 사용 빈도 (palette-history.json 연동)
+
+---
+
+---
+
+## 프로덕션 리뷰 (2026-06-22) — 완료 항목
+
+Phase 11·12 완성 후 전체 코드 리뷰 실시. 완료된 수정 사항:
+
+### 완료 (코드 수정)
+- [x] `FileIOHelper.swift` 신규 — `splitLines / headData / tailData / jsonObject / firstLine / trim / mtime` 공통 유틸 추출. SessionScanner/GeminiScanner/StatsScanner 3곳의 중복 IO 헬퍼 제거.
+- [x] `FrontmatterParser.swift` 신규 — 4군데 흩어진 YAML 프론트매터 파서 통합. PromptScanner 500줄 파서 제거. SkillScanner 내부 파서를 델리게이션으로 교체.
+- [x] `PathConstants.swift` 신규 — 10+ 파일에 흩어진 `NSHomeDirectory() + appendingPathComponent` 패턴 중앙화 (claudeProjects/Commands/Rules/Settings, geminiCommands/Tmp, skills/prompts/statsCache/paletteHistory/customNames/mcpJson).
+- [x] `SkillToggler.createSkill` 버그 수정 — link 경로와 record.id에 `name`(원본 입력값) 대신 `stem`(kebab-case 정규화) 사용. 스킬명 대소문자 불일치로 심볼릭 링크 경로가 틀리던 문제 해결.
+- [x] `onChange(of:)` deprecated API 수정 — 5개 파일 (MenuContentView, MCPView, HarnessPopoverView, SkillsView, PromptLibraryView). macOS 14의 새 단일 클로저 형식으로 전환.
+- [x] `StatsScanner` 캐시 무한 성장 수정 — `loadCache()`에 6개월(180일) pruning 추가. 오래된 JSONL 엔트리 자동 정리.
+- [x] `StatsScanner.readSkillsUsed` 중복 IO 제거 — 자체 head/tail 구현 제거, `FileIOHelper.readLines` 사용.
+- [x] `StatsScanner` magic number 제거 — `4 * 1024 * 1024` → `FileIOHelper.smallFileLimit` 통일.
+
+### 백로그 (미수정, 향후 작업)
+
+#### 코드 품질
+- [ ] **P1: MemoryScanner 프론트매터 파서** — `metadata.type` 네스트 처리가 필요해 FrontmatterParser 직접 사용 불가. `FrontmatterParser.parseYAML`에 nested dict 지원 추가 후 MemoryScanner 간소화.
+- [ ] **P2: `relativeTime` / `mtimeLabel` 중복** — MenuContentView, MemoryPopoverView, HarnessPopoverView 3곳에 각기 다른 상대 시간 포맷터 구현. 공통 `Date+RelativeLabel.swift` 익스텐션 추출.
+- [ ] **P2: 파일 쓰기 원자성 불일치** — MCPManager/CustomNameStore는 `.atomic` 옵션, HarnessManager는 임시 파일 + rename 사용. 후자가 더 안전 — MCPManager도 통일.
+- [ ] **P3: QoS 우선순위 혼용** — SessionStore는 `.utility`, MenuContentView/SkillsView는 `.background`. 스캔 타입별 기준 정립 필요.
+- [ ] **P3: SkillToggler 이름 정규화 이중 처리** — `createSkill`에서도, `SkillsView`에서도 sanitize 수행. 한 곳에서만 처리하도록 정리.
+
+#### 기능
+- [ ] **Phase 11.1**: 팔레트 삽입 대상 수동 드롭다운 선택
+- [ ] **Phase 11.2**: 사용자 정의 단축키 설정 UI
+- [ ] **Phase 12.1**: Gemini 세션 통계 통합
+- [ ] **Phase 12.2**: 프롬프트 사용 빈도 (palette-history.json 연동)
+- [ ] **Phase 10.1**: AGENTS.md 지원
+- [ ] **Phase 6.1**: MCP broken 배지 탐지
+- [ ] **Phase 8.1**: Memory 전체 프로젝트 통합 뷰
+- [ ] **Phase 9.1**: Hook 생성 폼
+- [ ] **Phase 1.5**: Gemini 세션 재개 플래그 조사
 
 ---
 
 ## Next Action
-- [ ] Phase 3.1 Gemini 리뷰 (step 6) → 문서 완료 (step 7) → 커밋 (step 8)
-- [ ] Phase 2 + 2.5 + 2.6 + 3 + 3.1 + 4 커밋 → PR 생성 (git push + gh pr create)
-- [ ] Phase 6~12 중 다음 구현할 Phase 선택 후 specs/ 작성
+- [ ] git push → PR 생성 (Phase 11·12 + 프로덕션 리뷰 수정 포함)
+- [ ] 다음 Phase 선택 (Phase 11.1 팔레트 대상 선택 / Phase 12.1 Gemini 통계 중 택1)
 
 ## 주요 결정 / 기술 메모
 - 형태: macOS 메뉴바 앱 (SwiftUI MenuBarExtra, `LSUIElement`)

@@ -50,10 +50,7 @@ enum MemoryScanner {
     // MARK: - Frontmatter parsing
 
     private static func parseRecord(path: String) -> MemoryRecord? {
-        var st = stat()
-        let fileMtime: Date = (lstat(path, &st) == 0)
-            ? Date(timeIntervalSince1970: Double(st.st_mtimespec.tv_sec))
-            : .distantPast
+        let fileMtime = FileIOHelper.mtime(at: path)
 
         let stem = String((path as NSString).lastPathComponent.dropLast(3))
 

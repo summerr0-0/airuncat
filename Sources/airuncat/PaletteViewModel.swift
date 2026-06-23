@@ -32,8 +32,7 @@ final class PaletteViewModel: ObservableObject {
     private var allItems: [PaletteItem] = []
     private var history: [String: Date] = [:]
 
-    static let historyPath: String =
-        (NSHomeDirectory() as NSString).appendingPathComponent(".airuncat/palette-history.json")
+    static var historyPath: String { PathConstants.paletteHistory }
 
     // MARK: - Load (async, called on palette open)
 

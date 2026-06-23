@@ -20,8 +20,7 @@ struct ClaudeMdInfo: Sendable {
 // MARK: - Scanner
 
 enum ClaudeMdScanner {
-    static let globalPath: String =
-        (NSHomeDirectory() as NSString).appendingPathComponent(".claude/CLAUDE.md")
+    static var globalPath: String { PathConstants.globalClaudeMd }
 
     // Cheap check for badge prefetch — no file reads, just fileExists
     static func exists(cwd: String) -> Bool {

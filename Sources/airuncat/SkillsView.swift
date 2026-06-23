@@ -184,17 +184,16 @@ struct SkillsView: View {
                 TextField("my-skill", text: $createName)
                     .textFieldStyle(.plain)
                     .font(.system(size: 12, design: .monospaced))
-                    .onChange(of: createName) { val in
+                    .onChange(of: createName) {
                         let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyz0123456789")
-                        let s = val.lowercased().unicodeScalars.compactMap { c -> Character? in
+                        let s = createName.lowercased().unicodeScalars.compactMap { c -> Character? in
                             if allowed.contains(c) { return Character(c) }
                             if c == " " || c == "_" { return "-" }
                             if c == "-" { return "-" }
                             return nil
                         }
-                        // Strip leading/trailing hyphens so isValidName stays consistent
                         let sanitized = String(s).trimmingCharacters(in: CharacterSet(charactersIn: "-"))
-                        if sanitized != val { createName = sanitized }
+                        if sanitized != createName { createName = sanitized }
                     }
             }
             // Description

@@ -36,10 +36,8 @@ struct OrphanLink: Identifiable {
 // MARK: - Scanner
 
 enum SkillScanner {
-    static let claudeCommandsDir =
-        (NSHomeDirectory() as NSString).appendingPathComponent(".claude/commands")
-    static let geminiCommandsDir =
-        (NSHomeDirectory() as NSString).appendingPathComponent(".gemini/commands")
+    static var claudeCommandsDir: String { PathConstants.claudeCommands }
+    static var geminiCommandsDir: String { PathConstants.geminiCommands }
 
     /// Returns (skill records sorted by name, orphan links found in commands dirs).
     /// Pass `projectCwd` to also include project-local skills from `<cwd>/.claude/commands/`.
@@ -190,20 +188,7 @@ enum SkillScanner {
         return name
     }
 
-    /// Reads the first `description:` value from YAML frontmatter.
     private static func parseFrontmatterDescription(at path: String) -> String {
-        guard let content = try? String(contentsOfFile: path, encoding: .utf8) else { return "" }
-        let lines = content.components(separatedBy: "\n")
-        guard lines.first?.trimmingCharacters(in: .whitespaces) == "---" else { return "" }
-        for line in lines.dropFirst() {
-            if line.trimmingCharacters(in: .whitespaces) == "---" { break }
-            if line.hasPrefix("description:") {
-                return line
-                    .dropFirst("description:".count)
-                    .trimmingCharacters(in: .whitespaces)
-                    .trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
-            }
-        }
-        return ""
+        FrontmatterParser.description(atPath: path)
     }
 }

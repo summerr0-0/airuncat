@@ -22,11 +22,9 @@ struct StatsData: Codable, Sendable {
 // MARK: - Scanner
 
 enum StatsScanner {
-    static let cachePath: String =
-        (NSHomeDirectory() as NSString).appendingPathComponent(".airuncat/stats-cache.json")
-
-    private static let projectsDir: String =
-        (NSHomeDirectory() as NSString).appendingPathComponent(".claude/projects")
+    static var cachePath: String { PathConstants.statsCache }
+    private static var projectsDir: String { PathConstants.claudeProjects }
+    private static let maxCacheAge: TimeInterval = 180 * 24 * 3600  // 6 months
 
     static func scan() -> StatsData {
         var data = loadCache()
@@ -52,9 +50,7 @@ enum StatsScanner {
 
         // Re-parse changed/new files
         for path in currentPaths {
-            var statInfo = stat()
-            guard lstat(path, &statInfo) == 0 else { continue }
-            let mtime = Double(statInfo.st_mtimespec.tv_sec)
+            guard let mtime = FileIOHelper.mtimeInterval(at: path) else { continue }
             if let cached = data.pathMtimes[path], cached == mtime { continue }
 
             // Remove old entry if exists
@@ -156,35 +152,17 @@ enum StatsScanner {
     }
 
     private static func readSkillsUsed(path: String) -> [String] {
-        let fm = FileManager.default
-        guard let attrs = try? fm.attributesOfItem(atPath: path),
-              let fileSize = attrs[.size] as? Int else { return [] }
-
-        let maxFull: Int = 4 * 1024 * 1024  // 4MB
-        let chunkSize: Int = 512 * 1024      // 512KB
-
-        let text: String?
-        if fileSize <= maxFull {
-            text = try? String(contentsOfFile: path, encoding: .utf8)
-        } else {
-            guard let fh = FileHandle(forReadingAtPath: path) else { return [] }
-            defer { try? fh.close() }
-            var combined = Data()
-            if let head = try? fh.read(upToCount: chunkSize) { combined.append(head) }
-            if let eof = try? fh.seekToEnd() {
-                let tailStart = max(0, Int(eof) - chunkSize)
-                try? fh.seek(toOffset: UInt64(tailStart))
-                if let tail = try? fh.read(upToCount: chunkSize) { combined.append(tail) }
-            }
-            text = String(data: combined, encoding: .utf8)
-        }
-
-        guard let content = text else { return [] }
+        var st = stat()
+        let size = (lstat(path, &st) == 0) ? Int(st.st_size) : 0
+        let url = URL(fileURLWithPath: path)
+        let (fwd, bwd) = FileIOHelper.readLines(url: url, size: size)
+        // For large files, fwd and bwd are different chunks; concatenate for full coverage.
+        // For small files, both point to the same lines — deduplicate.
+        let lines = size <= FileIOHelper.smallFileLimit ? fwd : fwd + bwd
 
         var skills: [String] = []
-        for line in content.components(separatedBy: "\n") {
-            guard !line.isEmpty,
-                  let json = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any],
+        for line in lines {
+            guard let json = FileIOHelper.jsonObject(line),
                   (json["type"] as? String) == "assistant",
                   let message = json["message"] as? [String: Any],
                   let contentArr = message["content"] as? [[String: Any]] else { continue }
@@ -204,8 +182,15 @@ enum StatsScanner {
 
     private static func loadCache() -> StatsData {
         guard let data = try? Data(contentsOf: URL(fileURLWithPath: cachePath)),
-              let decoded = try? JSONDecoder().decode(StatsData.self, from: data) else {
+              var decoded = try? JSONDecoder().decode(StatsData.self, from: data) else {
             return .empty
+        }
+        // Prune entries older than 6 months to prevent unbounded cache growth.
+        let cutoff = Date().timeIntervalSince1970 - maxCacheAge
+        let stale = Set(decoded.sessions.filter { $0.mtime < cutoff }.map { $0.path })
+        if !stale.isEmpty {
+            decoded.sessions.removeAll { stale.contains($0.path) }
+            stale.forEach { decoded.pathMtimes.removeValue(forKey: $0) }
         }
         return decoded
     }

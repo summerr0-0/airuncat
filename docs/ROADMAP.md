@@ -5,7 +5,7 @@
 
 - 컨셉: AI가 바쁠수록 고양이가 빨리 뛰고, 다 쉬면 앉아서 존다 (RunCat 영감)
 
-## 현재 상태 (v0.6)
+## 현재 상태 (v0.7)
 
 - Swift / SwiftUI MenuBarExtra 앱, Command Line Tools만으로 빌드 (`build.sh`)
 - 세션 모니터: Claude + Gemini CLI 세션 통합 관제 (AIKind 배지, live process 필터)
@@ -334,10 +334,47 @@ JSONL 파싱 집계로 Claude 세션 사용 패턴 시각화.
 
 ---
 
+---
+
+## 프로덕션 리뷰 (2026-06-22) — 완료 항목
+
+Phase 11·12 완성 후 전체 코드 리뷰 실시. 완료된 수정 사항:
+
+### 완료 (코드 수정)
+- [x] `FileIOHelper.swift` 신규 — `splitLines / headData / tailData / jsonObject / firstLine / trim / mtime` 공통 유틸 추출. SessionScanner/GeminiScanner/StatsScanner 3곳의 중복 IO 헬퍼 제거.
+- [x] `FrontmatterParser.swift` 신규 — 4군데 흩어진 YAML 프론트매터 파서 통합. PromptScanner 500줄 파서 제거. SkillScanner 내부 파서를 델리게이션으로 교체.
+- [x] `PathConstants.swift` 신규 — 10+ 파일에 흩어진 `NSHomeDirectory() + appendingPathComponent` 패턴 중앙화 (claudeProjects/Commands/Rules/Settings, geminiCommands/Tmp, skills/prompts/statsCache/paletteHistory/customNames/mcpJson).
+- [x] `SkillToggler.createSkill` 버그 수정 — link 경로와 record.id에 `name`(원본 입력값) 대신 `stem`(kebab-case 정규화) 사용. 스킬명 대소문자 불일치로 심볼릭 링크 경로가 틀리던 문제 해결.
+- [x] `onChange(of:)` deprecated API 수정 — 5개 파일 (MenuContentView, MCPView, HarnessPopoverView, SkillsView, PromptLibraryView). macOS 14의 새 단일 클로저 형식으로 전환.
+- [x] `StatsScanner` 캐시 무한 성장 수정 — `loadCache()`에 6개월(180일) pruning 추가. 오래된 JSONL 엔트리 자동 정리.
+- [x] `StatsScanner.readSkillsUsed` 중복 IO 제거 — 자체 head/tail 구현 제거, `FileIOHelper.readLines` 사용.
+- [x] `StatsScanner` magic number 제거 — `4 * 1024 * 1024` → `FileIOHelper.smallFileLimit` 통일.
+
+### 백로그 (미수정, 향후 작업)
+
+#### 코드 품질
+- [ ] **P1: MemoryScanner 프론트매터 파서** — `metadata.type` 네스트 처리가 필요해 FrontmatterParser 직접 사용 불가. `FrontmatterParser.parseYAML`에 nested dict 지원 추가 후 MemoryScanner 간소화.
+- [ ] **P2: `relativeTime` / `mtimeLabel` 중복** — MenuContentView, MemoryPopoverView, HarnessPopoverView 3곳에 각기 다른 상대 시간 포맷터 구현. 공통 `Date+RelativeLabel.swift` 익스텐션 추출.
+- [ ] **P2: 파일 쓰기 원자성 불일치** — MCPManager/CustomNameStore는 `.atomic` 옵션, HarnessManager는 임시 파일 + rename 사용. 후자가 더 안전 — MCPManager도 통일.
+- [ ] **P3: QoS 우선순위 혼용** — SessionStore는 `.utility`, MenuContentView/SkillsView는 `.background`. 스캔 타입별 기준 정립 필요.
+- [ ] **P3: SkillToggler 이름 정규화 이중 처리** — `createSkill`에서도, `SkillsView`에서도 sanitize 수행. 한 곳에서만 처리하도록 정리.
+
+#### 기능
+- [ ] **Phase 11.1**: 팔레트 삽입 대상 수동 드롭다운 선택
+- [ ] **Phase 11.2**: 사용자 정의 단축키 설정 UI
+- [ ] **Phase 12.1**: Gemini 세션 통계 통합
+- [ ] **Phase 12.2**: 프롬프트 사용 빈도 (palette-history.json 연동)
+- [ ] **Phase 10.1**: AGENTS.md 지원
+- [ ] **Phase 6.1**: MCP broken 배지 탐지
+- [ ] **Phase 8.1**: Memory 전체 프로젝트 통합 뷰
+- [ ] **Phase 9.1**: Hook 생성 폼
+- [ ] **Phase 1.5**: Gemini 세션 재개 플래그 조사
+
+---
+
 ## Next Action
-- [ ] Phase 3.1 Gemini 리뷰 (step 6) → 문서 완료 (step 7) → 커밋 (step 8)
-- [ ] Phase 2 + 2.5 + 2.6 + 3 + 3.1 + 4 커밋 → PR 생성 (git push + gh pr create)
-- [ ] Phase 6~12 중 다음 구현할 Phase 선택 후 specs/ 작성
+- [ ] git push → PR 생성 (Phase 11·12 + 프로덕션 리뷰 수정 포함)
+- [ ] 다음 Phase 선택 (Phase 11.1 팔레트 대상 선택 / Phase 12.1 Gemini 통계 중 택1)
 
 ## 주요 결정 / 기술 메모
 - 형태: macOS 메뉴바 앱 (SwiftUI MenuBarExtra, `LSUIElement`)

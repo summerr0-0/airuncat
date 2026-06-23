@@ -14,10 +14,8 @@ struct MCPRecord: Identifiable {
 // MARK: - Scanner
 
 enum MCPScanner {
-    static let mcpJsonPath: String =
-        (NSHomeDirectory() as NSString).appendingPathComponent(".mcp.json")
-    static let settingsLocalPath: String =
-        (NSHomeDirectory() as NSString).appendingPathComponent(".claude/settings.local.json")
+    static var mcpJsonPath: String { PathConstants.mcpJson }
+    static var settingsLocalPath: String { PathConstants.claudeSettingsLocal }
 
     static func scan() -> [MCPRecord] {
         let enabled = enabledNames()

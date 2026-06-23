@@ -1,8 +1,7 @@
 import Foundation
 
 enum PromptManager {
-    static let promptsDir: String = (NSHomeDirectory() as NSString)
-        .appendingPathComponent(".airuncat/prompts")
+    static var promptsDir: String { PathConstants.prompts }
 
     // MARK: - Migration
 

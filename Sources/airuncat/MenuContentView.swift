@@ -42,7 +42,7 @@ struct MenuContentView: View {
             footer
         }
         .frame(width: 320)
-        .onChange(of: tagStore.sessionTags) { _ in
+        .onChange(of: tagStore.sessionTags) {
             if case .tag(let t) = filter, !usedTags.contains(t) {
                 filter = .all
             }

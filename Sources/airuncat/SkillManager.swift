@@ -1,8 +1,7 @@
 import Foundation
 
 enum SkillManager {
-    static let skillsDir: String =
-        (NSHomeDirectory() as NSString).appendingPathComponent(".airuncat/skills")
+    static var skillsDir: String { PathConstants.skills }
 
     // MARK: - Migration
 

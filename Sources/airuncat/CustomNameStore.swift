@@ -3,8 +3,7 @@ import Foundation
 enum CustomNameStore {
 
     static var storeURL: URL {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".airuncat/custom-names.json")
+        URL(fileURLWithPath: PathConstants.customNames)
     }
 
     static func load() -> [String: String] {

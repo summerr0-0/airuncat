@@ -117,11 +117,12 @@ enum SkillToggler {
 
         guard fm.fileExists(atPath: sourcePath) else { return (nil, "파일 생성 확인 실패") }
 
-        let claudeLink = (SkillScanner.claudeCommandsDir as NSString).appendingPathComponent("\(name).md")
-        let geminiLink = (SkillScanner.geminiCommandsDir as NSString).appendingPathComponent("\(name).toml")
+        // Use `stem` (kebab-case, lowercased) for link paths — same as the file stem on disk.
+        let claudeLink = (SkillScanner.claudeCommandsDir as NSString).appendingPathComponent("\(stem).md")
+        let geminiLink = (SkillScanner.geminiCommandsDir as NSString).appendingPathComponent("\(stem).toml")
 
         var record = SkillRecord(
-            id: name, description: description, sourcePath: sourcePath,
+            id: stem, description: description, sourcePath: sourcePath,
             scope: .global,
             claudeState: .unlinked, geminiState: .unlinked,
             claudeLinkPath: claudeLink, geminiLinkPath: geminiLink
@@ -133,7 +134,7 @@ enum SkillToggler {
         }
         if linkGemini {
             record.geminiError = enable(record, for: .gemini)
-            let newLink = SkillScanner.geminiLinkPath(for: name)
+            let newLink = SkillScanner.geminiLinkPath(for: stem)
             record.geminiState = SkillScanner.linkState(at: newLink)
             record.geminiLinkPath = newLink
         }

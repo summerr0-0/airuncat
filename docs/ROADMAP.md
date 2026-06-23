@@ -303,7 +303,7 @@ OMC의 Tier-0 workflows(autopilot, ultrawork, ralph 등)를 단축키 하나로 
 - `ApplicationController.swift` — tap 생명주기 `@StateObject` 관리
 
 **백로그:**
-- [ ] Phase 11.1: 삽입 대상 수동 드롭다운 선택
+- [x] Phase 11.1: 삽입 대상 수동 드롭다운 선택
 - [ ] Phase 11.2: 사용자 정의 단축키 설정 UI
 
 ---
@@ -360,7 +360,7 @@ Phase 11·12 완성 후 전체 코드 리뷰 실시. 완료된 수정 사항:
 - [ ] **P3: SkillToggler 이름 정규화 이중 처리** — `createSkill`에서도, `SkillsView`에서도 sanitize 수행. 한 곳에서만 처리하도록 정리.
 
 #### 기능
-- [ ] **Phase 11.1**: 팔레트 삽입 대상 수동 드롭다운 선택
+- [x] **Phase 11.1**: 팔레트 삽입 대상 수동 드롭다운 선택
 - [ ] **Phase 11.2**: 사용자 정의 단축키 설정 UI
 - [ ] **Phase 12.1**: Gemini 세션 통계 통합
 - [ ] **Phase 12.2**: 프롬프트 사용 빈도 (palette-history.json 연동)
@@ -373,8 +373,9 @@ Phase 11·12 완성 후 전체 코드 리뷰 실시. 완료된 수정 사항:
 ---
 
 ## Next Action
-- [ ] git push → PR 생성 (Phase 11·12 + 프로덕션 리뷰 수정 포함)
-- [ ] 다음 Phase 선택 (Phase 11.1 팔레트 대상 선택 / Phase 12.1 Gemini 통계 중 택1)
+- [x] git push → PR 생성 (Phase 11·12 + 프로덕션 리뷰 수정 포함, PR #3)
+- [x] Phase 11.1: 팔레트 삽입 대상 수동 선택 구현
+- [ ] 다음 Phase 선택 (Phase 11.2 단축키 UI / Phase 12.1 Gemini 통계 중 택1)
 
 ## 주요 결정 / 기술 메모
 - 형태: macOS 메뉴바 앱 (SwiftUI MenuBarExtra, `LSUIElement`)

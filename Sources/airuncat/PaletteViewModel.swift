@@ -28,6 +28,8 @@ final class PaletteViewModel: ObservableObject {
     @Published var filtered: [PaletteItem] = []
     @Published var selectedIndex: Int = 0
     @Published var targetSession: SessionInfo? = nil
+    @Published var availableSessions: [SessionInfo] = []
+    @Published var isTargetManual = false
 
     private var allItems: [PaletteItem] = []
     private var history: [String: Date] = [:]
@@ -37,6 +39,10 @@ final class PaletteViewModel: ObservableObject {
     // MARK: - Load (async, called on palette open)
 
     func load(sessions: [SessionInfo]) async {
+        isTargetManual = false
+        availableSessions = sessions
+            .filter { $0.aiKind == .claude }
+            .sorted { $0.lastActivity > $1.lastActivity }
         targetSession = detectTarget(sessions)
         history = loadHistory()
 
@@ -146,6 +152,11 @@ final class PaletteViewModel: ObservableObject {
     var selectedItem: PaletteItem? {
         guard selectedIndex < filtered.count else { return nil }
         return filtered[selectedIndex]
+    }
+
+    func selectTarget(_ session: SessionInfo) {
+        targetSession = session
+        isTargetManual = true
     }
 
     // MARK: - Target detection

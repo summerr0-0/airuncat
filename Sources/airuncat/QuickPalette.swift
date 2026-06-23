@@ -147,19 +147,7 @@ struct PaletteView: View {
 
     private var footer: some View {
         HStack(spacing: 8) {
-            if let session = vm.targetSession {
-                Image(systemName: "terminal")
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
-                Text(session.displayName)
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
-            } else {
-                Text("삽입 대상 없음")
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary.opacity(0.6))
-            }
+            sessionPicker
             Spacer()
             Text("↩ 삽입")
                 .font(.system(size: 10))
@@ -173,6 +161,58 @@ struct PaletteView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 7)
+    }
+
+    @ViewBuilder
+    private var sessionPicker: some View {
+        if vm.availableSessions.isEmpty {
+            Text("삽입 대상 없음")
+                .font(.system(size: 10))
+                .foregroundColor(.secondary.opacity(0.6))
+        } else {
+            Menu {
+                ForEach(vm.availableSessions) { session in
+                    Button {
+                        vm.selectTarget(session)
+                    } label: {
+                        HStack {
+                            if vm.targetSession?.id == session.id {
+                                Image(systemName: "checkmark")
+                            }
+                            Image(systemName: "circle.fill")
+                                .foregroundColor(statusColor(for: session))
+                                .font(.system(size: 7))
+                            Text(session.displayName)
+                            Spacer()
+                            Text((session.cwd as NSString).lastPathComponent)
+                                .font(.system(size: 9))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "terminal")
+                        .font(.system(size: 10))
+                    Text(vm.targetSession?.displayName ?? "대상 없음")
+                        .font(.system(size: 10))
+                        .lineLimit(1)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 8))
+                }
+                .foregroundColor(.secondary)
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+        }
+    }
+
+    private func statusColor(for session: SessionInfo) -> Color {
+        switch session.status {
+        case .active:  return .green
+        case .idle:    return .yellow
+        case .resting: return .secondary
+        }
     }
 }
 

@@ -55,7 +55,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
                     id: id, sessionId: id, title: "", customName: nil,
                     projectName: "", cwd: cwd, gitBranch: "",
                     firstInstruction: "", lastUserMessage: "", toolName: "", toolDetail: "",
-                    lastActivity: Date(), messageCount: 0, category: .dev, workState: .responded, aiKind: .claude
+                    lastActivity: Date(), messageCount: 0, workState: .responded, aiKind: .claude
                 )
                 ITermController.open(stub)
             }

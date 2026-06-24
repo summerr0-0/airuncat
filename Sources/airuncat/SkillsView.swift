@@ -9,7 +9,7 @@ struct SkillsView: View {
     @State private var searchText = ""
     @State private var isLoading = true
     @State private var repairErrors: [String] = []
-    @State private var obsidianMissing = false
+    @State private var skillsDirMissing = false
 
     // Create form state
     @State private var showCreateForm = false
@@ -23,8 +23,8 @@ struct SkillsView: View {
         VStack(alignment: .leading, spacing: 0) {
             searchBar
             Divider()
-            if obsidianMissing {
-                missingObsidianNote
+            if skillsDirMissing {
+                missingSkillsDirNote
             } else if isLoading {
                 loadingRow
             } else if skills.isEmpty {
@@ -91,7 +91,7 @@ struct SkillsView: View {
             .padding(.vertical, 16)
     }
 
-    private var missingObsidianNote: some View {
+    private var missingSkillsDirNote: some View {
         VStack(spacing: 4) {
             Text("Skills directory not found")
                 .font(.system(size: 12, weight: .medium))
@@ -256,7 +256,7 @@ struct SkillsView: View {
         let (s, o) = await Task.detached(priority: .userInitiated) {
             SkillScanner.scan(projectCwd: cwd)
         }.value
-        obsidianMissing = s.isEmpty && !FileManager.default.fileExists(atPath: SkillManager.skillsDir)
+        skillsDirMissing = s.isEmpty && !FileManager.default.fileExists(atPath: SkillManager.skillsDir)
         skills = s
         orphans = o
         repairErrors = []

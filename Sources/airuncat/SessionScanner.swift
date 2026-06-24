@@ -18,11 +18,6 @@ enum WorkState: Equatable {
     case responded  // Claude sent a text response (question or completion)
 }
 
-enum SessionCategory: String {
-    case dev = "dev"
-    case learn = "learn"
-}
-
 enum AIKind {
     case claude
     case gemini
@@ -43,7 +38,6 @@ struct SessionInfo: Identifiable {
     var activeSkill: String?    // skill name currently running (nil if none or completed)
     var lastActivity: Date
     var messageCount: Int
-    var category: SessionCategory
     var workState: WorkState
     var aiKind: AIKind
     var modelName: String? = nil  // Gemini model string; nil for Claude
@@ -249,7 +243,6 @@ struct SessionScanner {
             activeSkill: activeSkill,
             lastActivity: mtime,
             messageCount: messageCount,
-            category: categorize(cwd: cwd, path: path),
             workState: workState,
             aiKind: .claude
         )
@@ -324,13 +317,6 @@ struct SessionScanner {
         let folder = (path as NSString).deletingLastPathComponent
         let name = (folder as NSString).lastPathComponent
         return name.split(separator: "-").last.map(String.init) ?? name
-    }
-
-    private static func categorize(cwd: String, path: String) -> SessionCategory {
-        let hay = (cwd + " " + path).lowercased()
-        let learnKeys = ["obsidian", "english", "algorithm", "interview", "study/english"]
-        for k in learnKeys where hay.contains(k) { return .learn }
-        return .dev
     }
 
     private static func basename(_ s: String) -> String {

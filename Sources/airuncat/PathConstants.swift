@@ -30,4 +30,6 @@ enum PathConstants {
     static var statsCache:          String { p(".airuncat/stats-cache.json") }
     static var paletteHistory:      String { p(".airuncat/palette-history.json") }
     static var customNames:         String { p(".airuncat/custom-names.json") }
+    static var tags:                String { p(".airuncat/tags.json") }
+    static var tagPool:             String { p(".airuncat/tag-pool.json") }
 }

@@ -203,7 +203,6 @@ struct GeminiScanner {
             activeSkill: nil,
             lastActivity: mtime,
             messageCount: messageCount,
-            category: .dev,
             workState: workState,
             aiKind: .gemini,
             modelName: modelName

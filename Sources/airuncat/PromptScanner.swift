@@ -16,7 +16,7 @@ struct PromptRecord: Identifiable {
 
 enum PromptScanner {
     static func scan() -> [PromptRecord] {
-        PromptManager.migrateFromObsidianIfNeeded()
+        // 마이그레이션은 AiruncatApp.init에서 1회 — 스캔은 순수 읽기.
         let dir = PromptManager.promptsDir
         guard let items = try? FileManager.default.contentsOfDirectory(atPath: dir) else { return [] }
         return items

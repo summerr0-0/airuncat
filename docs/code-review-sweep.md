@@ -38,17 +38,65 @@ status: active
 
 ---
 
+## Iteration 2 — 2026-06-24
+
+### 수정 완료 (build 그린 검증)
+
+| # | 분류 | 위치 | 문제 | 수정 |
+|---|------|------|------|------|
+| 4 | 목적불일치 | `SkillScanner.scan` / `PromptScanner.scan` | 읽기 함수가 첫 줄에서 `migrateFromObsidianIfNeeded()`(파일 복사=쓰기)를 트리거. read-only 의도와 충돌 | 마이그레이션을 `AiruncatApp.init`로 1회 hoist, 두 scan은 순수 읽기로 |
+
+**근거 메모**
+- 두 마이그레이션 모두 `guard !fileExists(dir)`로 가드된 **일회성 no-op** → 시작 시 1회 호출과
+  end-state 동일. init은 모든 scan보다 먼저 실행되므로 순서 안전. 빌드 그린.
+
+### 오탐(수정 안 함)
+- **force-unwrap 3건** (`MenuContentView` SF Symbol `tag`/`tag.fill`, `ApplicationController`
+  설정 URL) — 전부 항상 성공하는 상수 대상. 가드로 바꾸면 노이즈만 증가. 안전, 유지.
+- `try!` / `as!` — 0건.
+
+---
+
 ## 백로그 (다음 이터레이션 후보 — 자동 수정 보류, 검토 필요)
 
-- **scan = 읽기인데 쓰기 부작용**: `SkillScanner.scan()`/`PromptScanner` 첫 줄 `migrateFromObsidianIfNeeded()`.
-  점수/목록 조회(읽기)가 파일 복사(쓰기)를 트리거. 마이그레이션을 앱 시작 1회로 옮기는 게 맞음(동작 변경 → 검토).
 - **매직 넘버**: `SessionStatus`의 `90`/`30*60`(단일 출처, 문서 주석 있음 — 우선순위 낮음),
-  `SessionScanner` 512KB/4MB, `GeminiScanner` `48*3600`, `ProcessDetector` `3.0`s. 산재 여부 재확인 후 필요 시 명명상수화.
-- **force-unwrap / try!** 감사 — 크래시 위험 지점 점검.
+  `SessionScanner` 512KB/4MB, `GeminiScanner` `48*3600`(이미 named), `ProcessDetector` `3.0`s(이미 default param).
+  대부분 단일 출처/명명됨 → 실익 낮음. 산재된 것만 선별.
 - **UI 매직 디멘션**: 팝오버 width 280, maxHeight 480/360 등 뷰별 상이 — 공통 상수 검토.
+- **"이미 존재" 등 한국어 에러 문자열 매칭** (Phase 14 `applyAll`는 마커 상수화 완료) — 다른 곳에
+  문자열 비교로 흐름 제어하는 데가 있는지 점검.
+
+---
+
+## Iteration 3 — 2026-06-24 (dry, 스윕 마무리)
+
+### 결과: 고가치 발견 없음
+스캔 항목별:
+- **하드코딩 로직 문자열**(버전/모델/제어용): 없음.
+- **문자열 동등비교 기반 제어흐름**: 없음 (Phase 14 `applyAll` 마커는 이미 상수화).
+- **UI 디멘션**: 팝오버별 width(Harness 280 / ClaudeMd 300 / Menu 320)·maxHeight는
+  콘텐츠에 맞춘 **의도적 차이**지 중복 매직값이 아님. 공유 상수화는 미관 변경·시각 검증 필요라
+  실익 대비 리스크 → 미수정.
+- **매직 넘버**(잔여): 대부분 단일 출처 + 문서 주석 or 이미 named/default param. 산재 중복 없음.
+
+dry 이터레이션 → 스윕 종료. (loop-until-dry: 1회 dry면 마무리)
+
+---
+
+## 스윕 총괄
+
+| 이터 | 수정 | 핵심 |
+|------|------|------|
+| 1 | 3건 | 죽은 코드+개인키워드 하드코딩 제거(SessionCategory), TagStore 경로 중앙화, SkillsView 오해 네이밍 |
+| 2 | 1건 | 스캐너 쓰기 부작용 제거(마이그레이션 → 시작 1회), force-unwrap/try! 감사(클린) |
+| 3 | 0건 | dry — 고가치 발견 없음, 종료 |
+
+총 4건 수정(전부 behavior-preserving, build 그린). 동작 바뀌는 항목은 자동 수정 안 함.
+재개가 필요하면 새 영역(예: 동시성/Sendable 감사, 테스트 커버리지) 지정해 다시 `/loop`.
 
 ---
 
 ## 원칙
 - 한 이터레이션 = 작은 배치 + `swift build` 그린 + 이 문서 갱신.
 - behavior-preserving만 자동 수정. 동작 바뀌는 건 백로그 → 사용자 승인.
+- dry 이터레이션(고가치 발견 0)이면 churn 방지 위해 종료.

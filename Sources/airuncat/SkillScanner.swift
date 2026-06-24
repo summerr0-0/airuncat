@@ -42,7 +42,7 @@ enum SkillScanner {
     /// Returns (skill records sorted by name, orphan links found in commands dirs).
     /// Pass `projectCwd` to also include project-local skills from `<cwd>/.claude/commands/`.
     static func scan(projectCwd: String? = nil) -> (skills: [SkillRecord], orphans: [OrphanLink]) {
-        SkillManager.migrateFromObsidianIfNeeded()
+        // 마이그레이션은 AiruncatApp.init에서 1회 — 스캔은 순수 읽기.
         let fm = FileManager.default
         let skillsDir = SkillManager.skillsDir
 

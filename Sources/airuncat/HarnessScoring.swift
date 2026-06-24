@@ -32,11 +32,23 @@ enum HarnessGrade: String {
 
 // MARK: - Models
 
+/// Phase 14: ✗ 항목을 클릭 한 번으로 보완하는 자동 세팅 액션.
+enum HarnessSetupAction {
+    case createClaudeMd, createRule, addDenies, addHookTemplates
+    var label: String {
+        switch self {
+        case .createClaudeMd, .createRule, .addHookTemplates: return "생성"
+        case .addDenies:                                      return "추가"
+        }
+    }
+}
+
 struct ScoreItem: Identifiable {
     let id: String
     let label: String
     let passed: Bool
     let detail: String?     // "312 words", "rules 4" 등 (없으면 nil)
+    var action: HarnessSetupAction? = nil   // ✗ 항목 중 자동 보완 가능한 것만
 }
 
 struct AxisResult: Identifiable {
@@ -86,17 +98,22 @@ enum HarnessScoring {
         let postHook = info.hooks.contains { $0.enabled && $0.event == "PostToolUse" }
         let preHook  = info.hooks.contains { $0.enabled && $0.event == "PreToolUse" }
         let hasAutomation = info.projectSkillCount >= 1 || info.enabledHookCount >= 1
+        // "정리됨" 판정: airuncat이 만든 TODO 참고 템플릿(비활성)은 클러터로 보지 않음.
+        let staleDisabled = info.hooks.filter { !$0.enabled && !$0.commandSummary.hasPrefix("# TODO") }
 
         // 축 1 — 준비 (Scaffolding)
         let prep = AxisResult(
             id: "준비",
             items: [
                 ScoreItem(id: "prep-claudemd", label: "CLAUDE.md 존재",
-                          passed: wc >= 20, detail: wc > 0 ? "\(wc) words" : nil),
+                          passed: wc >= 20, detail: wc > 0 ? "\(wc) words" : nil,
+                          action: wc == 0 ? .createClaudeMd : nil),   // 짧지만 존재하면 덮어쓰기 금지
                 ScoreItem(id: "prep-rules", label: "프로젝트 규칙 분리",
-                          passed: projectRules >= 1, detail: projectRules > 0 ? "rules \(projectRules)" : nil),
+                          passed: projectRules >= 1, detail: projectRules > 0 ? "rules \(projectRules)" : nil,
+                          action: .createRule),
                 ScoreItem(id: "prep-deny", label: "행동범위 제한",
-                          passed: hasDeny, detail: hasDeny ? "deny \(denyCount)" : nil),
+                          passed: hasDeny, detail: hasDeny ? "deny \(denyCount)" : nil,
+                          action: .addDenies),
             ],
             deferredCount: 0, showsMaturity: true
         )
@@ -131,9 +148,11 @@ enum HarnessScoring {
             id: "검증",
             items: [
                 ScoreItem(id: "ver-post", label: "포맷터/린터/빌드",
-                          passed: postHook, detail: postHook ? "PostToolUse" : nil),
+                          passed: postHook, detail: postHook ? "PostToolUse" : nil,
+                          action: .addHookTemplates),
                 ScoreItem(id: "ver-pre", label: "위험 작업 차단",
-                          passed: preHook, detail: preHook ? "PreToolUse" : nil),
+                          passed: preHook, detail: preHook ? "PreToolUse" : nil,
+                          action: .addHookTemplates),
             ],
             deferredCount: 4, showsMaturity: true
         )
@@ -145,7 +164,8 @@ enum HarnessScoring {
                 ScoreItem(id: "imp-auto", label: "반복 작업 자동화",
                           passed: hasAutomation, detail: nil),
                 ScoreItem(id: "imp-clean", label: "정리됨",
-                          passed: !info.hasDisabledHook, detail: info.hasDisabledHook ? "비활성 hook" : nil),
+                          passed: staleDisabled.isEmpty,
+                          detail: staleDisabled.isEmpty ? nil : "비활성 hook \(staleDisabled.count)"),
             ],
             deferredCount: 3, showsMaturity: true
         )

@@ -227,7 +227,7 @@ struct ClaudeMdPopoverView: View {
     private func createFile(at path: String) async {
         createError = nil
         let projectName = (cwd as NSString).lastPathComponent
-        let template = "# \(projectName)\n\n## 역할\n\n## 규칙\n"
+        let template = HarnessSetup.claudeMdTemplate(projectName: projectName)
         let err: String? = await Task.detached(priority: .userInitiated) { () -> String? in
             let dir = (path as NSString).deletingLastPathComponent
             let fm = FileManager.default

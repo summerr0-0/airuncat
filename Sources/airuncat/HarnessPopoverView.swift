@@ -12,6 +12,7 @@ struct HarnessPopoverView: View {
     @State private var permCreateError: String? = nil
     @State private var errors: [(id: UUID, message: String)] = []
     @State private var scoreExpanded = false
+    @State private var settingUp = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -127,6 +128,7 @@ struct HarnessPopoverView: View {
                     Text(item.label)
                         .font(.system(size: 10))
                         .foregroundColor(item.passed ? .primary.opacity(0.8) : .secondary)
+                        .lineLimit(1)
                     if let detail = item.detail {
                         Text(detail)
                             .font(.system(size: 9))
@@ -135,6 +137,13 @@ struct HarnessPopoverView: View {
                             .truncationMode(.tail)
                     }
                     Spacer(minLength: 4)
+                    if !item.passed, let action = item.action {
+                        Button(action.label) { runSetup(action) }
+                            .buttonStyle(.plain)
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundColor(settingUp ? .secondary.opacity(0.5) : .accentColor)
+                            .disabled(settingUp)
+                    }
                 }
                 .padding(.leading, 20)
                 .padding(.trailing, 12)
@@ -448,6 +457,28 @@ struct HarnessPopoverView: View {
                 HarnessScanner.scan(cwd: cwd)
             }.value
             if let updated { info = updated }
+        }
+    }
+
+    // MARK: - Phase 14: Harness 자동 세팅
+
+    private func runSetup(_ action: HarnessSetupAction) {
+        guard !settingUp else { return }
+        settingUp = true
+        let cwd = info.projectPath
+        let snapshot = info
+        Task {
+            let err: String? = await Task.detached(priority: .userInitiated) {
+                switch action {
+                case .createClaudeMd:   return HarnessSetup.createClaudeMd(cwd: cwd)
+                case .createRule:       return HarnessSetup.createStarterRule(cwd: cwd)
+                case .addDenies:        return HarnessSetup.addSensitiveDenies(in: snapshot).writeError
+                case .addHookTemplates: return HarnessSetup.addHookTemplates(in: snapshot).writeError
+                }
+            }.value
+            settingUp = false
+            if let err { errors.append((id: UUID(), message: err)) }
+            rescan()   // 디스크 실제 상태로 점수 갱신
         }
     }
 

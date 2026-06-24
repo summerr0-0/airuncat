@@ -177,7 +177,7 @@ enum HarnessScanner {
             .first { !$0.isEmpty && !$0.hasPrefix("#") } ?? ""
     }
 
-    private static func scanHooks(settingsPath: String) -> [HookEntry] {
+    static func scanHooks(settingsPath: String) -> [HookEntry] {
         guard
             let data = try? Data(contentsOf: URL(fileURLWithPath: settingsPath)),
             let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]

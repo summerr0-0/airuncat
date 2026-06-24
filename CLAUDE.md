@@ -31,7 +31,8 @@ Sources/airuncat/
   PromptScanner.swift      ~/.airuncat/prompts/*.md 파싱
   PromptManager.swift      migrate/create/delete/togglePin
   PromptLibraryView.swift  Prompts 탭 UI (핀/카테고리/검색/추가/삭제)
-  HarnessScanner.swift     .claude/rules + ~/.claude/rules 파싱 (RuleFile: scope/summary/mtime)
+  HarnessScanner.swift     .claude/rules + ~/.claude/rules 파싱 (RuleFile: scope/summary/mtime), 점수 입력 필드(CLAUDE.md wordCount/@import, projectSkillCount)
+  HarnessScoring.swift     5축 성숙도 채점 (HarnessGrade A~F, AxisResult, evaluate — 프로젝트-로컬 정적 신호만)
   RuleManager.swift        rule 파일 create/delete (원자 쓰기)
   GlobalShortcut.swift     CGEvent tap ⌥Space 글로벌 단축키 등록·해제 (HandlerBox, CFMachPort)
   ApplicationController.swift  @MainActor ObservableObject, tap CFMachPort 생명주기 관리

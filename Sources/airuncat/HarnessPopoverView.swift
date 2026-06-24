@@ -11,12 +11,15 @@ struct HarnessPopoverView: View {
     @State private var permKind: PermissionKind = .allow
     @State private var permCreateError: String? = nil
     @State private var errors: [(id: UUID, message: String)] = []
+    @State private var scoreExpanded = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if !errors.isEmpty { errorBanner }
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
+                    scoreSection
+                    Divider().padding(.vertical, 4)
                     rulesSection
                     if !info.hooks.isEmpty {
                         Divider().padding(.vertical, 4)
@@ -40,6 +43,104 @@ struct HarnessPopoverView: View {
             }
         }
         .frame(width: 280)
+    }
+
+    // MARK: - Score
+
+    private var scoreSection: some View {
+        let score = info.score
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 6) {
+                Text("Harness")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundColor(.secondary)
+                gradeBadge(score.grade)
+                Text("\(score.percent)%")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(.secondary)
+                Spacer()
+                Text("5축")
+                    .font(.system(size: 9))
+                    .foregroundColor(.secondary)
+                Image(systemName: scoreExpanded ? "chevron.down" : "chevron.right")
+                    .font(.system(size: 8))
+                    .foregroundColor(.secondary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                withAnimation(.easeInOut(duration: 0.15)) { scoreExpanded.toggle() }
+            }
+
+            if scoreExpanded {
+                ForEach(score.axes) { axis in
+                    axisRow(axis)
+                }
+            }
+        }
+    }
+
+    private func gradeBadge(_ grade: HarnessGrade) -> some View {
+        Text(grade.rawValue)
+            .font(.system(size: 10, weight: .bold))
+            .foregroundColor(grade.badgeTextColor)
+            .frame(width: 16, height: 16)
+            .background(RoundedRectangle(cornerRadius: 4).fill(grade.color))
+    }
+
+    private func axisRow(_ axis: AxisResult) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            HStack(spacing: 5) {
+                Text(axis.title)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(.primary.opacity(0.85))
+                    .frame(width: 30, alignment: .leading)
+                if axis.showsMaturity {
+                    Text(axis.maturity)
+                        .font(.system(size: 8, weight: .semibold))
+                        .foregroundColor(.secondary)
+                        .frame(width: 16, alignment: .leading)
+                }
+                HStack(spacing: 2) {
+                    ForEach(axis.items.indices, id: \.self) { i in
+                        Circle()
+                            .fill(i < axis.pass ? Color.green.opacity(0.8) : Color.secondary.opacity(0.25))
+                            .frame(width: 5, height: 5)
+                    }
+                }
+                Spacer()
+                if axis.deferredCount > 0 {
+                    Text("· 심층 \(axis.deferredCount)항목")
+                        .font(.system(size: 8))
+                        .foregroundColor(.secondary.opacity(0.6))
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 3)
+
+            ForEach(axis.items) { item in
+                HStack(spacing: 5) {
+                    Image(systemName: item.passed ? "checkmark.circle.fill" : "xmark.circle")
+                        .font(.system(size: 9))
+                        .foregroundColor(item.passed ? .green : .secondary.opacity(0.5))
+                    Text(item.label)
+                        .font(.system(size: 10))
+                        .foregroundColor(item.passed ? .primary.opacity(0.8) : .secondary)
+                    if let detail = item.detail {
+                        Text(detail)
+                            .font(.system(size: 9))
+                            .foregroundColor(.secondary.opacity(0.6))
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                    Spacer(minLength: 4)
+                }
+                .padding(.leading, 20)
+                .padding(.trailing, 12)
+                .padding(.vertical, 1)
+            }
+        }
     }
 
     // MARK: - Sections

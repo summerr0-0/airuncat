@@ -18,6 +18,15 @@ enum WorkState: Equatable {
     case responded  // Claude sent a text response (question or completion)
 }
 
+/// 행 표시·정렬용 통합 상태. recency(status) + workState를 사용자 관점으로 합친 것.
+/// 우선순위: 응답 대기(나를 기다림) > 작업 중 > idle > 휴식.
+enum SessionDisplayStatus: Int {
+    case waiting = 0   // 응답 대기 — 사용자 입력 대기 (앱 핵심 가치)
+    case working = 1   // 활발히 작업 중
+    case idle    = 2   // 최근이지만 조용
+    case resting = 3   // 오래됨
+}
+
 enum AIKind {
     case claude
     case gemini
@@ -44,6 +53,14 @@ struct SessionInfo: Identifiable {
 
     var status: SessionStatus { SessionStatus(lastActivity: lastActivity) }
     var displayName: String { customName ?? projectName }
+
+    /// 사용자 관점 통합 상태(정렬·표시용).
+    var displayStatus: SessionDisplayStatus {
+        if case .resting = status { return .resting }       // 오래되면 휴식 우선
+        if workState == .responded { return .waiting }       // 최근 + 응답 대기 = 나를 기다림
+        if case .active = status, workState == .working { return .working }
+        return .idle
+    }
 }
 
 /// Reads Claude Code session transcripts from ~/.claude/projects/*/*.jsonl

@@ -52,16 +52,20 @@ struct MenuContentView: View {
     // MARK: - Subviews
 
     private var tabBar: some View {
-        HStack(spacing: 0) {
-            TabButton("Sessions", active: activeTab == .sessions) { activeTab = .sessions }
-            TabButton("Skills", active: activeTab == .skills) { activeTab = .skills }
-            TabButton("Prompts", active: activeTab == .prompts) { activeTab = .prompts }
-            TabButton("MCP", active: activeTab == .mcp) { activeTab = .mcp }
-            TabButton("Stats", active: activeTab == .stats) { activeTab = .stats }
+        HStack(spacing: 2) {
+            TabButton("Sessions", icon: "rectangle.stack", active: activeTab == .sessions) { switchTab(.sessions) }
+            TabButton("Skills", icon: "wand.and.stars", active: activeTab == .skills) { switchTab(.skills) }
+            TabButton("Prompts", icon: "text.bubble", active: activeTab == .prompts) { switchTab(.prompts) }
+            TabButton("MCP", icon: "puzzlepiece", active: activeTab == .mcp) { switchTab(.mcp) }
+            TabButton("Stats", icon: "chart.bar", active: activeTab == .stats) { switchTab(.stats) }
             Spacer()
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
+    }
+
+    private func switchTab(_ tab: Tab) {
+        withAnimation(.easeInOut(duration: 0.15)) { activeTab = tab }
     }
 
     @ViewBuilder
@@ -75,15 +79,17 @@ struct MenuContentView: View {
         } else {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    ForEach(filteredSessions) { session in
-                        SessionRow(
-                            session: session,
-                            tagStore: tagStore,
-                            onTap: { store.resume(session) },
-                            onRename: { name in store.setCustomName(sessionId: session.sessionId, name: name) }
-                        )
-                        Divider().opacity(0.4)
+                    let sorted = sortedSessions
+                    let waiting = sorted.filter { $0.displayStatus == .waiting }
+                    let others  = sorted.filter { $0.displayStatus != .waiting }
+                    ForEach(waiting) { sessionRow($0) }
+                    if !waiting.isEmpty && !others.isEmpty {
+                        Rectangle()
+                            .fill(Color.orange.opacity(0.22))
+                            .frame(height: 2)
+                            .padding(.vertical, 1)
                     }
+                    ForEach(others) { sessionRow($0) }
                     if !store.recentlyClosed.isEmpty {
                         recentlyClosedSection
                     }
@@ -93,17 +99,43 @@ struct MenuContentView: View {
         }
     }
 
+    @ViewBuilder
+    private func sessionRow(_ session: SessionInfo) -> some View {
+        SessionRow(
+            session: session,
+            tagStore: tagStore,
+            onTap: { store.resume(session) },
+            onRename: { name in store.setCustomName(sessionId: session.sessionId, name: name) }
+        )
+        Divider().opacity(0.4)
+    }
+
     private var header: some View {
         HStack(spacing: 8) {
             Text("airuncat")
                 .font(.system(size: 13, weight: .bold))
             Spacer()
+            // 응답 대기(나를 기다리는) 세션을 헤더에서 가장 먼저 알린다.
+            if waitingCount > 0 {
+                HStack(spacing: 3) {
+                    Image(systemName: "bell.fill")
+                        .font(.system(size: 8))
+                        .foregroundColor(.orange)
+                    Text("\(waitingCount) 대기")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.orange)
+                }
+            }
             Text(summary)
                 .font(.system(size: 11))
                 .foregroundColor(.secondary)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+    }
+
+    private var waitingCount: Int {
+        store.visibleSessions.filter { $0.displayStatus == .waiting }.count
     }
 
     private var filterBar: some View {
@@ -212,32 +244,52 @@ struct MenuContentView: View {
         case .tag(let t): return store.visibleSessions.filter { tagStore.tags(for: $0.sessionId).contains(t) }
         }
     }
+
+    /// 상태 우선 정렬: 응답 대기 > 작업 중 > idle > 휴식, 동률은 최근순.
+    private var sortedSessions: [SessionInfo] {
+        filteredSessions.sorted {
+            $0.displayStatus.rawValue != $1.displayStatus.rawValue
+                ? $0.displayStatus.rawValue < $1.displayStatus.rawValue
+                : $0.lastActivity > $1.lastActivity
+        }
+    }
 }
 
 // MARK: - Tab Button
 
 private struct TabButton: View {
     let label: String
+    let icon: String
     let active: Bool
     let action: () -> Void
 
-    init(_ label: String, active: Bool, action: @escaping () -> Void) {
+    init(_ label: String, icon: String, active: Bool, action: @escaping () -> Void) {
         self.label = label
+        self.icon = icon
         self.active = active
         self.action = action
     }
 
     var body: some View {
         Button(action: action) {
-            Text(label)
-                .font(.system(size: 11, weight: active ? .semibold : .regular))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(active ? Color.accentColor.opacity(0.15) : Color.clear)
-                .clipShape(RoundedRectangle(cornerRadius: 5))
-                .foregroundColor(active ? .accentColor : .secondary)
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.system(size: 11, weight: active ? .semibold : .regular))
+                // 활성 탭만 라벨을 펼쳐 320pt에 5탭이 깔끔히 들어가게.
+                if active {
+                    Text(label)
+                        .font(.system(size: 11, weight: .semibold))
+                        .fixedSize()
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(active ? Color.accentColor.opacity(0.15) : Color.clear)
+            .clipShape(Capsule())
+            .foregroundColor(active ? .accentColor : .secondary)
         }
         .buttonStyle(.plain)
+        .help(label)
     }
 }
 
@@ -301,7 +353,7 @@ private struct SessionRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 9) {
             Capsule()
-                .fill(statusBarColor)
+                .fill(AiruncatDesign.statusColor(session.displayStatus))
                 .frame(width: 3, height: 28)
                 .padding(.top, 3)
 
@@ -309,13 +361,19 @@ private struct SessionRow: View {
                 .font(.system(size: 8, weight: .bold, design: .monospaced))
                 .padding(.horizontal, 3)
                 .padding(.vertical, 2)
-                .background(Color.primary.opacity(0.08))
+                .background(AiruncatDesign.aiColor(session.aiKind).opacity(0.18))
                 .clipShape(RoundedRectangle(cornerRadius: 3))
-                .foregroundColor(.secondary)
+                .foregroundColor(AiruncatDesign.aiColor(session.aiKind))
                 .padding(.top, 5)
 
             VStack(alignment: .leading, spacing: 2) {
-                titleArea
+                HStack(spacing: 5) {
+                    Text(AiruncatDesign.statusLabel(session.displayStatus))
+                        .font(.system(size: 9, weight: session.displayStatus == .waiting ? .bold : .medium))
+                        .foregroundColor(AiruncatDesign.statusColor(session.displayStatus))
+                        .fixedSize()
+                    titleArea
+                }
                 if !session.lastUserMessage.isEmpty {
                     Text(session.lastUserMessage)
                         .font(.system(size: 10))
@@ -366,7 +424,7 @@ private struct SessionRow: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 7)
-        .background(hovering ? Color.primary.opacity(0.08) : Color.clear)
+        .background(rowBackground)
         .contentShape(Rectangle())
         .onTapGesture { if !isEditing { onTap() } }
         .onHover { hovering = $0 }
@@ -440,12 +498,12 @@ private struct SessionRow: View {
         return session.toolDetail.isEmpty ? session.toolName : "\(session.toolName): \(session.toolDetail)"
     }
 
-    private var statusBarColor: Color {
-        if case .resting = session.status { return Color.secondary.opacity(0.35) }
-        switch session.workState {
-        case .working:   return .green
-        case .responded: return .orange
+    /// 응답 대기 행은 주황 워시로 띄워 즉시 눈에 띄게.
+    private var rowBackground: Color {
+        if session.displayStatus == .waiting {
+            return Color.orange.opacity(hovering ? 0.13 : 0.07)
         }
+        return hovering ? Color.primary.opacity(0.08) : Color.clear
     }
 
     private var relativeTime: String {
@@ -660,9 +718,9 @@ private struct RecentlyClosedRow: View {
                 .font(.system(size: 8, weight: .bold, design: .monospaced))
                 .padding(.horizontal, 3)
                 .padding(.vertical, 2)
-                .background(Color.primary.opacity(0.05))
+                .background(AiruncatDesign.aiColor(item.info.aiKind).opacity(0.10))
                 .clipShape(RoundedRectangle(cornerRadius: 3))
-                .foregroundColor(Color.secondary.opacity(0.6))
+                .foregroundColor(AiruncatDesign.aiColor(item.info.aiKind).opacity(0.7))
 
             Text(item.info.projectName.isEmpty ? item.info.displayName : item.info.projectName)
                 .font(.system(size: 11))

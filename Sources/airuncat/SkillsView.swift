@@ -496,19 +496,25 @@ private struct LinkBadge: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 2) {
+                // 글자색 = AI 정체성(Claude 보라/Gemini 청록), 글리프·배경 = 링크 상태
                 Text(label)
                     .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .foregroundColor(aiColor)
                 Text(stateGlyph)
                     .font(.system(size: 9, weight: .semibold))
+                    .foregroundColor(badgeForeground)
             }
             .padding(.horizontal, 5)
             .padding(.vertical, 3)
             .background(badgeBackground)
             .clipShape(RoundedRectangle(cornerRadius: 4))
-            .foregroundColor(badgeForeground)
         }
         .buttonStyle(.plain)
         .help(helpText)
+    }
+
+    private var aiColor: Color {
+        AiruncatDesign.aiColor(label == "C" ? .claude : .gemini)
     }
 
     private var stateGlyph: String {
@@ -556,9 +562,9 @@ private struct OrphanRow: View {
             Text(orphan.kind == .claude ? "C" : "G")
                 .font(.system(size: 8, weight: .bold, design: .monospaced))
                 .padding(.horizontal, 3).padding(.vertical, 2)
-                .background(Color.orange.opacity(0.15))
+                .background(Color.orange.opacity(0.15))   // 고아 링크 경고 맥락
                 .clipShape(RoundedRectangle(cornerRadius: 3))
-                .foregroundColor(.orange)
+                .foregroundColor(AiruncatDesign.aiColor(orphan.kind == .claude ? .claude : .gemini))
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(orphan.id)
@@ -599,14 +605,18 @@ private struct FormLinkToggle: View {
         self._isOn = isOn
     }
 
+    private var aiColor: Color {
+        AiruncatDesign.aiColor(label == "C" ? .claude : .gemini)
+    }
+
     var body: some View {
         Button { isOn.toggle() } label: {
             Text(label)
                 .font(.system(size: 10, weight: .bold, design: .monospaced))
                 .padding(.horizontal, 6)
                 .padding(.vertical, 3)
-                .background(isOn ? Color.accentColor.opacity(0.18) : Color.primary.opacity(0.07))
-                .foregroundColor(isOn ? .accentColor : .secondary)
+                .background(isOn ? aiColor.opacity(0.18) : Color.primary.opacity(0.07))
+                .foregroundColor(isOn ? aiColor : .secondary)
                 .clipShape(RoundedRectangle(cornerRadius: 4))
         }
         .buttonStyle(.plain)

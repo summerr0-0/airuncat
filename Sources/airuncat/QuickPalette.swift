@@ -180,7 +180,8 @@ struct PaletteView: View {
                                 Image(systemName: "checkmark")
                             }
                             Image(systemName: "circle.fill")
-                                .foregroundColor(statusColor(for: session))
+                                // 앱 전역 상태 색 언어 사용 — 대기(orange) 세션도 피커에 드러남
+                                .foregroundColor(AiruncatDesign.statusColor(session.displayStatus))
                                 .font(.system(size: 7))
                             Text(session.displayName)
                             Spacer()
@@ -204,14 +205,6 @@ struct PaletteView: View {
             }
             .menuStyle(.borderlessButton)
             .fixedSize()
-        }
-    }
-
-    private func statusColor(for session: SessionInfo) -> Color {
-        switch session.status {
-        case .active:  return .green
-        case .idle:    return .yellow
-        case .resting: return .secondary
         }
     }
 }

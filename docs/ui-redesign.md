@@ -87,7 +87,14 @@ status: active
   귀결(taste 아님). 시스템 accent와 무관히 Stats가 "Claude" 색으로 일관.
 - 기간 피커는 selection 컨트롤 → accent 유지(TabButton/FilterChip과 같은 affordance 규칙).
 
+## Iteration 9 — 퀵 팔레트 상태 색 통일 (완료, build·실행 그린)
+- 세션 피커 점 색을 로컬 정의(`statusColor(for:)`: active=green/**idle=yellow**/resting)
+  제거 → `session.displayStatus` + `AiruncatDesign.statusColor`로 라우팅.
+- 효과: 앱 전역 상태 색 언어와 일치 + **"응답 대기"(orange)** 세션이 피커에도 드러남
+  (이전엔 `status`만 봐서 waiting 표현 불가 — 앱 핵심 가치와 정합).
+- 검색 카피·선택 행은 이미 깔끔 → 무변경(군더더기 없음). 스펙: `specs/palette-cleanup.md`.
+
 # 다음 후보 (정책 필요 → 사용자 결정 후 진행)
 - **고양이**: 표정/포즈 — 큰 주관적 작업. `--render-frames` 컨택트시트로 시각 검증 가능.
-- **퀵 팔레트**: 검색창 정리 — 범위 모호, 스펙 필요.
-- 색 전파는 소진(셸·Stats 완료 · MCP/Prompts/팝오버는 AI-typed 아님 → 색 적용 무의미).
+- 색 전파 소진(셸·Stats·팔레트 완료 · MCP/Prompts/팝오버는 AI-typed 아님 → 무의미).
+- 셸 외 잔여 정리는 사실상 끝 — 다음은 PR 또는 고양이 표정.

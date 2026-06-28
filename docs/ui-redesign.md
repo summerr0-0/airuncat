@@ -80,8 +80,14 @@ status: active
   아니라(AI-typed 아님) AI 색이 정보를 더하지 않음. MCP/Prompts와 같은 판단. 이미
   semantic 색(green pass·red deny·grade 배지)을 쓰고 있어 추가 전파 무의미.
 
+## Iteration 8 — Stats 데이터 viz 색 (완료, build·실행 그린)
+- Stats는 **Claude 세션 데이터**(`~/.claude/projects/`)만 집계 → 히트맵·스킬 바를
+  `Color.accentColor` → `AiruncatDesign.aiColor(.claude)`(보라)로 통일.
+- "단일 hue는 디자인 정책"이 아니라 **데이터 출처가 Claude → Claude 색**이라는 원칙적
+  귀결(taste 아님). 시스템 accent와 무관히 Stats가 "Claude" 색으로 일관.
+- 기간 피커는 selection 컨트롤 → accent 유지(TabButton/FilterChip과 같은 affordance 규칙).
+
 # 다음 후보 (정책 필요 → 사용자 결정 후 진행)
-- **Stats 탭**: 히트맵/바 색 — 단일 hue 선택은 디자인 정책(물어볼 것).
 - **고양이**: 표정/포즈 — 큰 주관적 작업. `--render-frames` 컨택트시트로 시각 검증 가능.
-- **퀵 팔레트**: 검색창 정리.
-- 색 전파는 소진(셸 완료 · MCP/Prompts/팝오버는 AI-typed 아님 → 색 적용 무의미).
+- **퀵 팔레트**: 검색창 정리 — 범위 모호, 스펙 필요.
+- 색 전파는 소진(셸·Stats 완료 · MCP/Prompts/팝오버는 AI-typed 아님 → 색 적용 무의미).

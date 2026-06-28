@@ -132,7 +132,8 @@ struct StatsView: View {
                         let count = grid[row][col]
                         let density = maxVal > 0 ? Double(count) / Double(maxVal) : 0
                         Rectangle()
-                            .fill(Color.accentColor.opacity(max(density * 0.9, count > 0 ? 0.15 : 0)))
+                            // Stats는 Claude 세션 데이터 → Claude 정체성 색으로 통일
+                            .fill(AiruncatDesign.aiColor(.claude).opacity(max(density * 0.9, count > 0 ? 0.15 : 0)))
                             .frame(width: 10, height: 8)
                             .cornerRadius(1)
                     }
@@ -162,7 +163,7 @@ struct StatsView: View {
                     GeometryReader { geo in
                         let barWidth = geo.size.width * CGFloat(item.count) / CGFloat(maxCount)
                         Rectangle()
-                            .fill(Color.accentColor.opacity(0.6))
+                            .fill(AiruncatDesign.aiColor(.claude).opacity(0.6))
                             .frame(width: max(2, barWidth), height: 6)
                             .cornerRadius(2)
                             .frame(maxHeight: .infinity, alignment: .center)

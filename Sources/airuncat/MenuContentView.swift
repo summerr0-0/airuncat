@@ -120,15 +120,15 @@ struct MenuContentView: View {
                 HStack(spacing: 3) {
                     Image(systemName: "bell.fill")
                         .font(.system(size: 8))
-                        .foregroundColor(.orange)
+                        .foregroundColor(AiruncatDesign.statusColor(.waiting))
                     Text("\(waitingCount) 대기")
                         .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(.orange)
+                        .foregroundColor(AiruncatDesign.statusColor(.waiting))
                 }
             }
-            Text(summary)
+            // C/G 카운트에 AI 정체성 색을 입혀 헤더도 같은 색 언어를 쓴다.
+            summaryText
                 .font(.system(size: 11))
-                .foregroundColor(.secondary)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -205,19 +205,33 @@ struct MenuContentView: View {
 
     // MARK: - Computed
 
-    private var summary: String {
+    /// 헤더 요약. C는 Claude 보라, G는 Gemini 청록으로 칠해 색 언어를 유지한다.
+    private var summaryText: Text {
         let c = store.claudeActiveCount
         let g = store.geminiActiveCount
         let a = c + g
         let i = store.idleCount
-        if a == 0 && i == 0 { return "all quiet" }
-        var parts: [String] = []
-        if c > 0 { parts.append("\(c)C") }
-        if g > 0 { parts.append("\(g)G") }
-        let activePart = parts.joined(separator: " ")
-        if a == 0 { return "\(i) idle" }
-        if i == 0 { return "\(activePart) active" }
-        return "\(activePart) active · \(i) idle"
+        let secondary = Color.secondary
+
+        func dim(_ s: String) -> Text { Text(s).foregroundColor(secondary) }
+
+        if a == 0 && i == 0 { return dim("all quiet") }
+        if a == 0 { return dim("\(i) idle") }
+
+        // 활성 파트: 색 입힌 C/G 스팬을 공백으로 잇는다.
+        var active = Text("")
+        var needSpace = false
+        if c > 0 {
+            active = Text("\(c)C").foregroundColor(AiruncatDesign.aiColor(.claude))
+            needSpace = true
+        }
+        if g > 0 {
+            if needSpace { active = active + dim(" ") }
+            active = active + Text("\(g)G").foregroundColor(AiruncatDesign.aiColor(.gemini))
+        }
+        active = active + dim(" active")
+        if i == 0 { return active }
+        return active + dim(" · \(i) idle")
     }
 
     private var usedTags: [String] {

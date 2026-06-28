@@ -71,13 +71,17 @@ status: active
 - **머즐(코) 범프**: 얼굴 앞에 작은 오발 → 어느 쪽을 보는지 명확, 스냅샷에서 스냇 느낌.
 - 컨택트시트로 검증, build.sh 라이브 반영. (귀/꼬리는 iteration 5)
 
+## Iteration 7 — 셸 헤더 색 전파 (완료, build·실행 그린)
+- 헤더 summary의 **C는 Claude 보라 / G는 Gemini 청록**으로 칠해(`summary: String`→
+  `summaryText: Text` 스팬 합성) 헤더도 AI 색 언어를 쓴다. "all quiet"/idle은 secondary.
+- 헤더 **응답 대기 배지**: 하드코딩 `.orange` → `AiruncatDesign.statusColor(.waiting)`로
+  라우팅(상태 색 토큰 단일화).
+- **팝오버는 색 적용 보류** — Harness/CLAUDE.md/Memory/Tag는 Claude-vs-Gemini 대비형이
+  아니라(AI-typed 아님) AI 색이 정보를 더하지 않음. MCP/Prompts와 같은 판단. 이미
+  semantic 색(green pass·red deny·grade 배지)을 쓰고 있어 추가 전파 무의미.
+
 # 다음 후보 (정책 필요 → 사용자 결정 후 진행)
 - **Stats 탭**: 히트맵/바 색 — 단일 hue 선택은 디자인 정책(물어볼 것).
 - **고양이**: 표정/포즈 — 큰 주관적 작업. `--render-frames` 컨택트시트로 시각 검증 가능.
 - **퀵 팔레트**: 검색창 정리.
-- 색 전파는 대체로 소진(MCP/Prompts는 AI-typed 아님 → 색 적용 무의미).
-- **셸**: 헤더(airuncat 타이틀 + summary) / 탭 바 — 색·위계·아이콘.
-- **팝오버**: Harness(점수 배지), CLAUDE.md, Memory, Tag — 같은 언어 전파.
-- **Stats 탭**: 히트맵/바 차트 색을 디자인 토큰에 맞춤.
-- **고양이**: 표정/포즈 개선(별도, 벡터 유지).
-- **퀵 팔레트**: 검색창 시각 정리.
+- 색 전파는 소진(셸 완료 · MCP/Prompts/팝오버는 AI-typed 아님 → 색 적용 무의미).

@@ -12,6 +12,7 @@ enum PathConstants {
     static var claudeProjects:      String { p(".claude/projects") }
     static var claudeCommands:      String { p(".claude/commands") }
     static var claudeRules:         String { p(".claude/rules") }
+    static var claudeSkills:        String { p(".claude/skills") }
     static var claudeSettings:      String { p(".claude/settings.json") }
     static var claudeSettingsLocal: String { p(".claude/settings.local.json") }
     static var globalClaudeMd:      String { p(".claude/CLAUDE.md") }

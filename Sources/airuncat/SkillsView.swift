@@ -2,6 +2,12 @@ import SwiftUI
 
 // MARK: - Skills View
 
+private struct SkillSection: Identifiable {
+    let id: String
+    let title: String
+    let items: [SkillRecord]
+}
+
 struct SkillsView: View {
     var projectCwd: String? = nil
     @State private var skills: [SkillRecord] = []
@@ -32,13 +38,16 @@ struct SkillsView: View {
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
-                        ForEach(filteredSkills) { skill in
-                            SkillRow(
-                                skill: skill,
-                                onToggle: { toggle($0, for: $1) },
-                                onDelete: { deleteSkill(skill) }
-                            )
-                            Divider().opacity(0.4)
+                        ForEach(skillSections) { section in
+                            sectionHeader(section.title, count: section.items.count)
+                            ForEach(section.items) { skill in
+                                SkillRow(
+                                    skill: skill,
+                                    onToggle: { toggle($0, for: $1) },
+                                    onDelete: { deleteSkill(skill) }
+                                )
+                                Divider().opacity(0.4)
+                            }
                         }
                         if !orphans.isEmpty {
                             orphanSection
@@ -247,6 +256,41 @@ struct SkillsView: View {
         return skills.filter { $0.id.contains(q) || $0.description.lowercased().contains(q) }
     }
 
+    /// 스코프별 섹션. global → project → native(출처 프로젝트별 폴더)로 분리.
+    private var skillSections: [SkillSection] {
+        let items = filteredSkills
+        var out: [SkillSection] = []
+        let global = items.filter { $0.scope == .global }
+        if !global.isEmpty { out.append(SkillSection(id: "global", title: "airuncat 스킬", items: global)) }
+        let project = items.filter { $0.scope == .project }
+        if !project.isEmpty { out.append(SkillSection(id: "project", title: "프로젝트 스킬", items: project)) }
+
+        // native: group(출처 프로젝트)별로 폴더 분리. 등장 순서 유지(이미 group 정렬됨).
+        let native = items.filter { $0.scope == .native }
+        var seen = Set<String>(), groups: [String] = []
+        for s in native { let g = s.group ?? "로컬"; if seen.insert(g).inserted { groups.append(g) } }
+        for g in groups {
+            out.append(SkillSection(id: "native-\(g)", title: "네이티브 · \(g)",
+                                    items: native.filter { ($0.group ?? "로컬") == g }))
+        }
+        return out
+    }
+
+    private func sectionHeader(_ title: String, count: Int) -> some View {
+        HStack(spacing: 5) {
+            Text(title)
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundColor(.secondary)
+            Text("\(count)")
+                .font(.system(size: 9))
+                .foregroundColor(Color.secondary.opacity(0.6))
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .padding(.top, 8)
+        .padding(.bottom, 3)
+    }
+
     // MARK: - Actions
 
     @MainActor
@@ -393,6 +437,24 @@ private struct SkillRow: View {
     @State private var hovering = false
     @State private var confirmingDelete = false
 
+    private var scopeBadge: String {
+        switch skill.scope { case .project: return "P"; case .native: return "N"; case .global: return "G" }
+    }
+    private var scopeBadgeColor: Color {
+        switch skill.scope {
+        case .project: return .orange
+        case .native:  return AiruncatDesign.aiColor(.claude)   // 네이티브 = Claude
+        case .global:  return .secondary
+        }
+    }
+    private var scopeHelp: String {
+        switch skill.scope {
+        case .project: return "프로젝트 로컬 (.claude/commands/)"
+        case .native:  return "Claude 네이티브 스킬 (~/.claude/skills/) — 자동 활성, 링크 관리 없음"
+        case .global:  return "글로벌 (~/.airuncat/skills/)"
+        }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 9) {
@@ -418,10 +480,10 @@ private struct SkillRow: View {
 
                 HStack(spacing: 5) {
                     // Scope badge
-                    Text(skill.scope == .project ? "P" : "G")
+                    Text(scopeBadge)
                         .font(.system(size: 9, weight: .semibold))
-                        .foregroundColor(skill.scope == .project ? .orange : .secondary)
-                        .help(skill.scope == .project ? "프로젝트 로컬 (.claude/commands/)" : "글로벌 (~/.airuncat/skills/)")
+                        .foregroundColor(scopeBadgeColor)
+                        .help(scopeHelp)
 
                     if skill.scope == .global {
                         LinkBadge("C", state: skill.claudeState) { onToggle(skill, .claude) }

@@ -25,9 +25,9 @@ Sources/airuncat/
   MCPManager.swift         toggle/create/delete (atomic JSON write, settings.local.json)
   MCPView.swift            MCP 탭 UI (토글/생성/삭제, UUID 에러 배너)
   SkillManager.swift       skillsDir 상수 + Obsidian 마이그레이션
-  SkillScanner.swift       ~/.airuncat/skills/SKILL_*.md + commands 링크 상태 스캔
+  SkillScanner.swift       ~/.airuncat/skills(글로벌) + <cwd>/.claude/commands(프로젝트) + ~/.claude/skills(네이티브, 출처 프로젝트별 group) 스캔
   SkillToggler.swift       symlink create/remove, createSkill, deleteSkill
-  SkillsView.swift         Skills 탭 UI (토글/수리/추가/삭제)
+  SkillsView.swift         Skills 탭 UI (토글/수리/추가/삭제, 스코프별 섹션: 글로벌/프로젝트/네이티브·출처별)
   PromptScanner.swift      ~/.airuncat/prompts/*.md 파싱
   PromptManager.swift      migrate/create/delete/togglePin
   PromptLibraryView.swift  Prompts 탭 UI (핀/카테고리/검색/추가/삭제)

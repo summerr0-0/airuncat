@@ -9,10 +9,11 @@ private struct SkillSection: Identifiable {
 }
 
 struct SkillsView: View {
-    var projectCwd: String? = nil
+    var projectCwds: [String] = []
     @State private var skills: [SkillRecord] = []
     @State private var orphans: [OrphanLink] = []
     @State private var searchText = ""
+    @State private var collapsed: Set<String> = []   // 접힌 섹션 id
     @State private var isLoading = true
     @State private var repairErrors: [String] = []
     @State private var skillsDirMissing = false
@@ -39,14 +40,16 @@ struct SkillsView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
                         ForEach(skillSections) { section in
-                            sectionHeader(section.title, count: section.items.count)
-                            ForEach(section.items) { skill in
-                                SkillRow(
-                                    skill: skill,
-                                    onToggle: { toggle($0, for: $1) },
-                                    onDelete: { deleteSkill(skill) }
-                                )
-                                Divider().opacity(0.4)
+                            sectionHeader(section)
+                            if !collapsed.contains(section.id) {
+                                ForEach(section.items) { skill in
+                                    SkillRow(
+                                        skill: skill,
+                                        onToggle: { toggle($0, for: $1) },
+                                        onDelete: { deleteSkill(skill) }
+                                    )
+                                    Divider().opacity(0.4)
+                                }
                             }
                         }
                         if !orphans.isEmpty {
@@ -66,7 +69,7 @@ struct SkillsView: View {
             Divider()
             bottomBar
         }
-        .task { await reload() }
+        .task(id: projectCwds) { await reload() }
     }
 
     // MARK: - Subviews
@@ -262,33 +265,53 @@ struct SkillsView: View {
         var out: [SkillSection] = []
         let global = items.filter { $0.scope == .global }
         if !global.isEmpty { out.append(SkillSection(id: "global", title: "airuncat 스킬", items: global)) }
-        let project = items.filter { $0.scope == .project }
-        if !project.isEmpty { out.append(SkillSection(id: "project", title: "프로젝트 스킬", items: project)) }
 
-        // native: group(출처 프로젝트)별로 폴더 분리. 등장 순서 유지(이미 group 정렬됨).
-        let native = items.filter { $0.scope == .native }
-        var seen = Set<String>(), groups: [String] = []
-        for s in native { let g = s.group ?? "로컬"; if seen.insert(g).inserted { groups.append(g) } }
-        for g in groups {
-            out.append(SkillSection(id: "native-\(g)", title: "네이티브 · \(g)",
-                                    items: native.filter { ($0.group ?? "로컬") == g }))
-        }
+        // 프로젝트: 프로젝트 폴더별로 분리.
+        out.append(contentsOf: groupedSections(items.filter { $0.scope == .project },
+                                               idPrefix: "project", titlePrefix: "프로젝트", fallback: "프로젝트"))
+        // 네이티브: 출처 프로젝트별로 분리.
+        out.append(contentsOf: groupedSections(items.filter { $0.scope == .native },
+                                               idPrefix: "native", titlePrefix: "네이티브", fallback: "로컬"))
         return out
     }
 
-    private func sectionHeader(_ title: String, count: Int) -> some View {
-        HStack(spacing: 5) {
-            Text(title)
-                .font(.system(size: 9, weight: .semibold))
-                .foregroundColor(.secondary)
-            Text("\(count)")
-                .font(.system(size: 9))
-                .foregroundColor(Color.secondary.opacity(0.6))
-            Spacer()
+    /// scope가 같은 레코드들을 group(프로젝트/출처)별 섹션으로 나눈다(등장 순서 유지).
+    private func groupedSections(_ items: [SkillRecord], idPrefix: String,
+                                 titlePrefix: String, fallback: String) -> [SkillSection] {
+        var seen = Set<String>(), groups: [String] = []
+        for s in items { let g = s.group ?? fallback; if seen.insert(g).inserted { groups.append(g) } }
+        return groups.map { g in
+            SkillSection(id: "\(idPrefix)-\(g)", title: "\(titlePrefix) · \(g)",
+                         items: items.filter { ($0.group ?? fallback) == g })
         }
-        .padding(.horizontal, 12)
-        .padding(.top, 8)
-        .padding(.bottom, 3)
+    }
+
+    private func sectionHeader(_ section: SkillSection) -> some View {
+        let isCollapsed = collapsed.contains(section.id)
+        return Button {
+            withAnimation(.easeInOut(duration: 0.12)) {
+                if isCollapsed { collapsed.remove(section.id) } else { collapsed.insert(section.id) }
+            }
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
+                    .font(.system(size: 8, weight: .semibold))
+                    .foregroundColor(.secondary)
+                    .frame(width: 9)
+                Text(section.title)
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundColor(.secondary)
+                Text("\(section.items.count)")
+                    .font(.system(size: 9))
+                    .foregroundColor(Color.secondary.opacity(0.6))
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 8)
+            .padding(.bottom, 3)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Actions
@@ -296,9 +319,9 @@ struct SkillsView: View {
     @MainActor
     private func reload() async {
         isLoading = true
-        let cwd = projectCwd
+        let cwds = projectCwds
         let (s, o) = await Task.detached(priority: .userInitiated) {
-            SkillScanner.scan(projectCwd: cwd)
+            SkillScanner.scan(projectCwds: cwds)
         }.value
         skillsDirMissing = s.isEmpty && !FileManager.default.fileExists(atPath: SkillManager.skillsDir)
         skills = s

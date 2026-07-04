@@ -32,7 +32,7 @@ struct MenuContentView: View {
             if activeTab == .sessions {
                 sessionsContent
             } else if activeTab == .skills {
-                SkillsView(projectCwd: activeSessionCwd)
+                SkillsView(projectCwds: allClaudeCwds)
             } else if activeTab == .prompts {
                 PromptLibraryView(store: store)
             } else if activeTab == .mcp {
@@ -324,10 +324,13 @@ struct MenuContentView: View {
         return result
     }
 
-    private var activeSessionCwd: String? {
-        let sessions = store.visibleSessions
-        return (sessions.first { $0.status == .active && $0.aiKind == .claude }
-             ?? sessions.first { $0.status == .idle && $0.aiKind == .claude })?.cwd
+    /// 보이는 Claude 세션들의 고유 cwd — 여러 프로젝트의 로컬 스킬을 모두 스캔하기 위함.
+    private var allClaudeCwds: [String] {
+        var seen = Set<String>(); var out: [String] = []
+        for s in store.visibleSessions where s.aiKind == .claude && !s.cwd.isEmpty {
+            if seen.insert(s.cwd).inserted { out.append(s.cwd) }
+        }
+        return out
     }
 
     private var filteredSessions: [SessionInfo] {

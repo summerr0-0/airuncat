@@ -42,8 +42,9 @@ enum SkillScanner {
     static var geminiCommandsDir: String { PathConstants.geminiCommands }
 
     /// Returns (skill records sorted by name, orphan links found in commands dirs).
-    /// Pass `projectCwd` to also include project-local skills from `<cwd>/.claude/commands/`.
-    static func scan(projectCwd: String? = nil) -> (skills: [SkillRecord], orphans: [OrphanLink]) {
+    /// `projectCwds`: 스캔할 프로젝트들의 cwd. 각 프로젝트의 `.claude/commands`+`.claude/skills`를
+    /// 프로젝트별 group으로 묶어 포함한다(여러 프로젝트 동시).
+    static func scan(projectCwds: [String] = []) -> (skills: [SkillRecord], orphans: [OrphanLink]) {
         // 마이그레이션은 AiruncatApp.init에서 1회 — 스캔은 순수 읽기.
         let fm = FileManager.default
         let skillsDir = SkillManager.skillsDir
@@ -89,43 +90,23 @@ enum SkillScanner {
             ))
         }
 
-        // 4. Project-local skills from <cwd>/.claude/commands/
-        if let cwd = projectCwd, !cwd.isEmpty {
-            let projCommandsDir = (cwd as NSString).appendingPathComponent(".claude/commands")
-            if let items = try? fm.contentsOfDirectory(atPath: projCommandsDir) {
-                for filename in items.filter({ $0.hasSuffix(".md") }) {
-                    let kebab = String(filename.dropLast(".md".count)).lowercased()
-                    guard !knownNames.contains(kebab) else { continue }  // global wins on collision
-                    knownNames.insert(kebab)
-                    let path = (projCommandsDir as NSString).appendingPathComponent(filename)
-                    let desc = parseFrontmatterDescription(at: path)
-                    records.append(SkillRecord(
-                        id: kebab,
-                        description: desc,
-                        sourcePath: path,
-                        scope: .project,
-                        claudeState: .linked,   // project skills need no symlink
-                        geminiState: .unlinked,
-                        claudeLinkPath: path,
-                        geminiLinkPath: ""
-                    ))
-                }
-            }
+        // 4. Project-local skills — 여러 프로젝트의 .claude/commands + .claude/skills, 프로젝트별 group.
+        var seenCwds = Set<String>()
+        for cwd in projectCwds where !cwd.isEmpty && seenCwds.insert(cwd).inserted {
+            records.append(contentsOf: projectSkills(cwd: cwd))
         }
 
         // 5. Native skills from ~/.claude/skills/<name>/SKILL.md (Claude 자동 인식, 링크 관리 없음)
         records.append(contentsOf: nativeSkills(knownNames: &knownNames))
 
-        // 정렬: global → project → native. native는 group(출처)별로 묶고 이름순.
+        // 정렬: global → project(그룹별) → native(그룹별). 그룹 내 이름순.
         func rank(_ s: SkillScope) -> Int {
             switch s { case .global: return 0; case .project: return 1; case .native: return 2 }
         }
         records.sort {
             let ra = rank($0.scope), rb = rank($1.scope)
             if ra != rb { return ra < rb }
-            if $0.scope == .native, $1.scope == .native, $0.group != $1.group {
-                return ($0.group ?? "") < ($1.group ?? "")
-            }
+            if $0.group != $1.group { return ($0.group ?? "") < ($1.group ?? "") }
             return $0.id < $1.id
         }
 
@@ -149,6 +130,62 @@ enum SkillScanner {
         }
 
         return (records, orphans)
+    }
+
+    // MARK: - Project skills (<cwd>/.claude/commands + .claude/skills)
+
+    /// 한 프로젝트의 로컬 스킬을 모은다: `.claude/commands/*.md` + `.claude/skills/<n>/SKILL.md`.
+    /// group = 프로젝트 폴더명(폴더 분리용). 같은 프로젝트 안에서 이름 중복은 한 번만.
+    private static func projectSkills(cwd: String) -> [SkillRecord] {
+        let fm = FileManager.default
+        let label = projectLabel(cwd)
+        var local = Set<String>()
+        var out: [SkillRecord] = []
+
+        // commands/*.md
+        let cmdDir = (cwd as NSString).appendingPathComponent(".claude/commands")
+        if let items = try? fm.contentsOfDirectory(atPath: cmdDir) {
+            for filename in items.filter({ $0.hasSuffix(".md") }) {
+                let kebab = String(filename.dropLast(3)).lowercased()
+                guard local.insert(kebab).inserted else { continue }
+                let path = (cmdDir as NSString).appendingPathComponent(filename)
+                out.append(projectRecord(id: kebab, path: path, group: label))
+            }
+        }
+
+        // skills/<name>/SKILL.md
+        let skDir = (cwd as NSString).appendingPathComponent(".claude/skills")
+        if let items = try? fm.contentsOfDirectory(atPath: skDir) {
+            for name in items where !name.hasPrefix(".") {
+                let skillMd = ((skDir as NSString).appendingPathComponent(name) as NSString)
+                    .appendingPathComponent("SKILL.md")
+                guard fm.fileExists(atPath: skillMd) else { continue }
+                let kebab = name.lowercased()
+                guard local.insert(kebab).inserted else { continue }
+                out.append(projectRecord(id: kebab, path: skillMd, group: label))
+            }
+        }
+        return out
+    }
+
+    private static func projectRecord(id: String, path: String, group: String) -> SkillRecord {
+        SkillRecord(
+            id: id,
+            description: nativeDescription(atPath: path),   // 블록 스칼라까지 처리
+            sourcePath: path,
+            scope: .project,
+            claudeState: .linked,     // 프로젝트 스킬은 Claude가 직접 읽음 — 링크 개념 없음
+            geminiState: .unlinked,
+            claudeLinkPath: path,
+            geminiLinkPath: "",
+            group: group
+        )
+    }
+
+    /// 프로젝트 폴더명(cwd의 마지막 경로 요소). 폴더 분리 라벨.
+    private static func projectLabel(_ cwd: String) -> String {
+        let last = (cwd as NSString).lastPathComponent
+        return last.isEmpty ? cwd : last
     }
 
     // MARK: - Native skills (~/.claude/skills)

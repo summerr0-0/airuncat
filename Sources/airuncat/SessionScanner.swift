@@ -50,6 +50,8 @@ struct SessionInfo: Identifiable {
     var workState: WorkState
     var aiKind: AIKind
     var modelName: String? = nil  // Gemini model string; nil for Claude
+    var contextTokens: Int? = nil    // 최신 assistant usage: input + cache_read + cache_creation (raw, 창 점유)
+    var durationSeconds: Int? = nil  // 첫 이벤트 timestamp ~ 마지막 활동(mtime)
 
     var status: SessionStatus { SessionStatus(lastActivity: lastActivity) }
     var displayName: String { customName ?? projectName }
@@ -122,10 +124,14 @@ struct SessionScanner {
         var cwd = ""
         var gitBranch = ""
         var messageCount = 0
+        var firstTimestamp: Date? = nil   // duration 시작점
 
         // Forward pass: title, first real instruction, cwd/branch, rough message count.
         for line in forwardLines {
             guard let obj = FileIOHelper.jsonObject(line) else { continue }
+            if firstTimestamp == nil, let ts = obj["timestamp"] as? String {
+                firstTimestamp = parseTimestamp(ts)
+            }
             let type = obj["type"] as? String
             switch type {
             case "ai-title":
@@ -154,6 +160,7 @@ struct SessionScanner {
         var lastAssistantHasTool = false
         var foundLastAssistant = false
         var foundLastUser = false
+        var contextTokens: Int? = nil        // 최신 assistant usage 합산(raw)
         var completedToolIds = Set<String>()  // tool_use IDs that already have a tool_result
         var activeSkill: String? = nil
         var foundSkillCheck = false           // true once we've examined the most recent Skill call
@@ -178,6 +185,12 @@ struct SessionScanner {
             }
 
             if evType == "assistant" {
+                // 컨텍스트 채움: 가장 최근 assistant 메시지의 usage 합산(raw, D4a).
+                if contextTokens == nil,
+                   let msg = obj["message"] as? [String: Any],
+                   let usage = msg["usage"] as? [String: Any] {
+                    contextTokens = contextTokenSum(usage)
+                }
                 if !foundLastAssistant {
                     foundLastAssistant = true
                     if let msg = obj["message"] as? [String: Any],
@@ -233,6 +246,9 @@ struct SessionScanner {
         if title.isEmpty { title = firstInstruction.isEmpty ? project : firstInstruction }
         let sessionId = ((path as NSString).lastPathComponent as NSString).deletingPathExtension
 
+        // duration: 첫 이벤트 ~ 마지막 활동(mtime). 첫 timestamp 없으면 nil.
+        let durationSeconds: Int? = firstTimestamp.map { max(0, Int(mtime.timeIntervalSince($0))) }
+
         let sessionStatus = SessionStatus(lastActivity: mtime)
         let workState: WorkState
         if lastEventRole == "user" || lastAssistantHasTool {
@@ -261,7 +277,9 @@ struct SessionScanner {
             lastActivity: mtime,
             messageCount: messageCount,
             workState: workState,
-            aiKind: .claude
+            aiKind: .claude,
+            contextTokens: contextTokens,
+            durationSeconds: durationSeconds
         )
     }
 
@@ -270,6 +288,27 @@ struct SessionScanner {
     private static func captureContext(_ obj: [String: Any], cwd: inout String, branch: inout String) {
         if let c = obj["cwd"] as? String, !c.isEmpty { cwd = c }
         if let b = obj["gitBranch"] as? String, !b.isEmpty { branch = b }
+    }
+
+    /// 컨텍스트 창 점유량 = input + cache_read + cache_creation (raw, D4a).
+    /// 창에 실제로 들어있는 토큰이므로 가중 없이 합산한다. output은 제외(이미 생성된 것).
+    private static func contextTokenSum(_ usage: [String: Any]) -> Int? {
+        let input   = usage["input_tokens"] as? Int ?? 0
+        let cacheR  = usage["cache_read_input_tokens"] as? Int ?? 0
+        let cacheC  = usage["cache_creation_input_tokens"] as? Int ?? 0
+        let sum = input + cacheR + cacheC
+        return sum > 0 ? sum : nil
+    }
+
+    private static let tsFormatterFractional: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+    private static let tsFormatterPlain = ISO8601DateFormatter()
+
+    private static func parseTimestamp(_ ts: String) -> Date? {
+        tsFormatterFractional.date(from: ts) ?? tsFormatterPlain.date(from: ts)
     }
 
     private static func userText(_ message: [String: Any]) -> String? {

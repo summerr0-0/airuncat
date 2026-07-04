@@ -17,6 +17,8 @@ private enum FilterMode: Equatable {
 struct MenuContentView: View {
     @ObservedObject var store: SessionStore
     @ObservedObject var tagStore: TagStore
+    @ObservedObject var usageStore: UsageStore
+    @ObservedObject var settingsStore: SettingsStore
     @StateObject private var statsStore = StatsStore()
     @State private var activeTab: Tab = .sessions
     @State private var filter: FilterMode = .all
@@ -36,7 +38,7 @@ struct MenuContentView: View {
             } else if activeTab == .mcp {
                 MCPView()
             } else {
-                StatsView(statsStore: statsStore)
+                StatsView(statsStore: statsStore, settingsStore: settingsStore)
             }
             Divider()
             footer
@@ -111,27 +113,104 @@ struct MenuContentView: View {
     }
 
     private var header: some View {
-        HStack(spacing: 8) {
-            Text("airuncat")
-                .font(.system(size: 13, weight: .bold))
-            Spacer()
-            // 응답 대기(나를 기다리는) 세션을 헤더에서 가장 먼저 알린다.
-            if waitingCount > 0 {
-                HStack(spacing: 3) {
-                    Image(systemName: "bell.fill")
-                        .font(.system(size: 8))
-                        .foregroundColor(AiruncatDesign.statusColor(.waiting))
-                    Text("\(waitingCount) 대기")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(AiruncatDesign.statusColor(.waiting))
+        VStack(spacing: 6) {
+            HStack(spacing: 8) {
+                Text("airuncat")
+                    .font(.system(size: 13, weight: .bold))
+                Spacer()
+                // 응답 대기(나를 기다리는) 세션을 헤더에서 가장 먼저 알린다.
+                if waitingCount > 0 {
+                    HStack(spacing: 3) {
+                        Image(systemName: "bell.fill")
+                            .font(.system(size: 8))
+                            .foregroundColor(AiruncatDesign.statusColor(.waiting))
+                        Text("\(waitingCount) 대기")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(AiruncatDesign.statusColor(.waiting))
+                    }
                 }
+                // C/G 카운트에 AI 정체성 색을 입혀 헤더도 같은 색 언어를 쓴다.
+                summaryText
+                    .font(.system(size: 11))
             }
-            // C/G 카운트에 AI 정체성 색을 입혀 헤더도 같은 색 언어를 쓴다.
-            summaryText
-                .font(.system(size: 11))
+            usageBar
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+    }
+
+    // MARK: - 사용량 창 (5h·주간) — R4
+
+    @ViewBuilder
+    private var usageBar: some View {
+        if settingsStore.settings.hasLimits {
+            HStack(spacing: 12) {
+                usageGauge(label: "5h", consumed: usageStore.fiveHourConsumed,
+                           limit: settingsStore.settings.fiveHourLimit)
+                usageGauge(label: "wk", consumed: usageStore.weeklyConsumed,
+                           limit: settingsStore.settings.weeklyLimit)
+            }
+        } else {
+            // 한도 미입력 → 입력 유도 배너(R4.2). 소비 절대값은 표시, 클릭 시 Stats 탭.
+            Button { switchTab(.stats) } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "gauge.with.dots.needle.bottom.50percent")
+                        .font(.system(size: 9))
+                    Text("사용량 한도 설정  ·  5h \(Self.fmtK(usageStore.fiveHourConsumed)) · wk \(Self.fmtK(usageStore.weeklyConsumed)) 소비")
+                        .font(.system(size: 9))
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.right").font(.system(size: 7))
+                }
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 7).padding(.vertical, 4)
+                .frame(maxWidth: .infinity)
+                .background(RoundedRectangle(cornerRadius: 5)
+                    .fill(AiruncatDesign.aiColor(.claude).opacity(0.08)))
+            }
+            .buttonStyle(.plain)
+            .help("Stats 탭에서 플랜 한도를 입력하면 남은 %가 표시됩니다 (근사치)")
+        }
+    }
+
+    private func usageGauge(label: String, consumed: Int, limit: Int?) -> some View {
+        let remaining = UsageStore.remainingPercent(consumed: consumed, limit: limit)
+        let over = UsageStore.isOverLimit(consumed: consumed, limit: limit)
+        let ratio = limit.map { min(1.0, Double(consumed) / Double(max(1, $0))) } ?? 0
+        return HStack(spacing: 5) {
+            Text(label)
+                .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                .foregroundColor(.secondary)
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.secondary.opacity(0.15))
+                    Capsule().fill(Self.gaugeColor(remaining: remaining, over: over))
+                        .frame(width: max(2, geo.size.width * ratio))
+                }
+            }
+            .frame(height: 5)
+            // "~" = 근사치 표기(C3)
+            Text(over ? "초과" : "~\(Int(remaining ?? 0))%")
+                .font(.system(size: 9, design: .monospaced))
+                .foregroundColor(over ? .orange : .secondary)
+                .fixedSize()
+        }
+        .frame(maxWidth: .infinity)
+        .help("\(label): \(Self.fmtK(consumed)) / \(Self.fmtK(limit ?? 0)) 소비 (근사치)")
+    }
+
+    private static func gaugeColor(remaining: Double?, over: Bool) -> Color {
+        if over { return .orange }
+        guard let r = remaining else { return AiruncatDesign.aiColor(.claude).opacity(0.7) }
+        if r < 15 { return .orange }
+        if r < 40 { return .yellow }
+        return AiruncatDesign.aiColor(.claude).opacity(0.75)
+    }
+
+    private static func fmtK(_ n: Int) -> String {
+        if n >= 1_000_000 { return String(format: "%.1fM", Double(n) / 1_000_000) }
+        if n >= 1000 { return "\(n / 1000)k" }
+        return "\(n)"
     }
 
     private var waitingCount: Int {
@@ -363,8 +442,13 @@ private struct SessionRow: View {
     @State private var harness: HarnessInfo? = nil
     @State private var memoryCount: Int = 0
     @State private var claudeMdExists: Bool = false
+    @State private var expanded = false
+
+    /// 펼칠 상세(토큰/지속시간)가 있을 때만 disclosure 노출.
+    private var hasDetail: Bool { session.contextTokens != nil || session.durationSeconds != nil }
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
         HStack(alignment: .top, spacing: 9) {
             Capsule()
                 .fill(AiruncatDesign.statusColor(session.displayStatus))
@@ -435,12 +519,29 @@ private struct SessionRow: View {
                 }
             }
             .padding(.top, 1)
+
+            if hasDetail {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.12)) { expanded.toggle() }
+                } label: {
+                    Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(.secondary)
+                        .frame(width: 14, height: 20)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(expanded ? "접기" : "토큰·지속시간 보기")
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { if !isEditing { onTap() } }
+
+            if expanded { expandedDetail }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 7)
         .background(rowBackground)
-        .contentShape(Rectangle())
-        .onTapGesture { if !isEditing { onTap() } }
         .onHover { hovering = $0 }
         .task(id: session.cwd) {
             let info = await Task.detached(priority: .background) {
@@ -526,6 +627,58 @@ private struct SessionRow: View {
         if s < 3600 { return "\(s / 60)m" }
         if s < 86400 { return "\(s / 3600)h" }
         return "\(s / 86400)d"
+    }
+
+    // MARK: - 펼침 상세 (토큰·지속시간·활동)
+
+    private var expandedDetail: some View {
+        HStack(alignment: .center, spacing: 14) {
+            if let tokens = session.contextTokens {
+                contextGauge(tokens)
+            }
+            if let dur = session.durationSeconds {
+                Text("\(Self.formatDuration(dur)) 지속 · \(relativeTime) 전 활동")
+                    .font(.system(size: 9))
+                    .foregroundColor(Color.secondary.opacity(0.9))
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.leading, 27)   // C 배지/텍스트 열 아래 정렬
+        .padding(.trailing, 2)
+    }
+
+    /// 컨텍스트 창 채움 게이지: "82k / 200k (41%)" + 채움 바(200k 분모, 100% clamp).
+    private func contextGauge(_ tokens: Int) -> some View {
+        let limit = 200_000
+        let ratio = min(1.0, Double(tokens) / Double(limit))
+        return VStack(alignment: .leading, spacing: 2) {
+            Text("\(Self.formatK(tokens)) / 200k (\(Int(ratio * 100))%)")
+                .font(.system(size: 9, design: .monospaced))
+                .foregroundColor(.secondary)
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.secondary.opacity(0.15))
+                    Capsule()
+                        .fill(AiruncatDesign.aiColor(.claude).opacity(0.75))
+                        .frame(width: max(2, geo.size.width * ratio))
+                }
+            }
+            .frame(height: 4)
+        }
+        .frame(width: 128)
+    }
+
+    private static func formatK(_ n: Int) -> String {
+        if n >= 1000 { return "\(n / 1000)k" }
+        return "\(n)"
+    }
+
+    private static func formatDuration(_ seconds: Int) -> String {
+        if seconds < 60 { return "\(seconds)s" }
+        let m = seconds / 60
+        if m < 60 { return "\(m)m" }
+        let h = m / 60, rem = m % 60
+        return rem == 0 ? "\(h)h" : "\(h)h \(rem)m"
     }
 }
 

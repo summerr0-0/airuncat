@@ -41,7 +41,10 @@ Sources/airuncat/
   QuickPalette.swift       NSPanel 플로팅 팔레트 창 + PaletteView + PaletteRow (SwiftUI)
   StatsScanner.swift       ~/.claude/projects/ JSONL 집계 (mtime 증분 캐시, tool_use Skill 집계)
   StatsStore.swift         @MainActor ObservableObject, period 필터, heatmap/topSkills 계산
-  StatsView.swift          Stats 탭 UI (기간 피커, 히트맵 7×24, 스킬 바 차트)
+  StatsView.swift          Stats 탭 UI (기간 피커, 히트맵 7×24, 스킬 바 차트, 사용량 한도 설정)
+  SettingsStore.swift      @MainActor, ~/.airuncat/settings.json (5h/주간 한도·리셋요일, 티어 프리셋)
+  UsageScanner.swift       Claude JSONL 메시지별 가중 소비 토큰 집계 (5h/주간 창, mtime 증분 캐시, 창밖 파일 스킵)
+  UsageStore.swift         @MainActor, 5h 롤링·주간 창 소비량·남은% 계산 (주간 리셋 앵커)
   TagStore.swift / CustomNameStore.swift / NotificationManager.swift
 build.sh                   release 빌드 + .app 번들 조립 + 자체 서명
 ```
@@ -59,6 +62,8 @@ build.sh                   release 빌드 + .app 번들 조립 + 자체 서명
 | MCP 활성 상태 | `~/.claude/settings.local.json` (`enabledMcpjsonServers` 배열) |
 | 팔레트 이력 | `~/.airuncat/palette-history.json` (최근 50건, 원자 쓰기) |
 | 통계 캐시 | `~/.airuncat/stats-cache.json` (SessionStat 배열, mtime 증분) |
+| 사용자 설정 | `~/.airuncat/settings.json` (5h/주간 한도, 주간 리셋 요일) |
+| 사용량 캐시 | `~/.airuncat/usage-cache.json` (파일별 소비 이벤트, mtime 증분) |
 
 **스킬 수동 추가:** `~/.airuncat/skills/SKILL_[NAME].md` 생성 → 앱 C/G 배지 토글로 링크
 **프롬프트 수동 추가:** `~/.airuncat/prompts/<name>.md` 생성 → 새로고침

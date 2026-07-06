@@ -163,7 +163,9 @@ airuncat에서 Claude Code 사용량을 시간별(5시간 롤링) 세션 창과 
   컨텍스트 채움(D4a)은 raw 합산 유지(별도 목적).
 
 ## Known Gaps
-- L2 provisional: cache_read 가중치 0.1은 관측 기반 추정 — 실제 Claude 계상비와 다르면 상수 조정 필요.
+- (개정) 소비 메트릭에서 **cache_read 제외**로 확정. 실측상 cache_read(raw 5h≈181M)가 소비를
+  지배해 어떤 상식적 한도든 즉시 초과로 떠서, input+output+cache_creation만 집계(D4b 개정).
+  프리셋도 실측 스케일(5h≈5M/주≈12M)에 맞춰 재조정. 여전히 근사 — 사용자 보정 전제.
 - (그 외 체크포인트 모두 resolved/assumed.)
 
 ## Requirements

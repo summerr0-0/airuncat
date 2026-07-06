@@ -25,9 +25,6 @@ struct UsageFileCache: Codable, Sendable {
 /// 창 범위(주간=최대 8일) 밖 파일은 스킵하고, mtime 증분 캐시로 재파싱을 피한다(C2).
 enum UsageScanner {
 
-    /// cache_read 할인 가중치. Claude가 cache_read를 크게 할인 계상하는 근사(C6, 조정 가능 상수).
-    static let cacheReadWeight = 0.1
-
     /// 주간 창(최대 7일) + 여유. 이보다 오래된 파일은 창에 기여 불가 → 스킵.
     private static let windowHorizon: TimeInterval = 8 * 24 * 3600
 
@@ -94,13 +91,14 @@ enum UsageScanner {
         return out
     }
 
-    /// 소비 메트릭(D4b): input + output + cache_creation은 1:1, cache_read는 가중.
+    /// 소비 메트릭(D4b, 개정): input + output + cache_creation.
+    /// cache_read(매 턴 컨텍스트 재읽기)는 새 작업이 아니고 실측상 소비를 지배(5h에 raw 181M,
+    /// 나머지의 ~10배)하며 Claude 실제 한도엔 거의 안 잡혀 **제외**한다.
     private static func weightedTokens(_ usage: [String: Any]) -> Int {
         let input  = usage["input_tokens"] as? Int ?? 0
         let output = usage["output_tokens"] as? Int ?? 0
         let cacheC = usage["cache_creation_input_tokens"] as? Int ?? 0
-        let cacheR = usage["cache_read_input_tokens"] as? Int ?? 0
-        return input + output + cacheC + Int(Double(cacheR) * cacheReadWeight)
+        return input + output + cacheC
     }
 
     private static let tsFractional: ISO8601DateFormatter = {

@@ -43,7 +43,7 @@ Sources/airuncat/
   StatsStore.swift         @MainActor ObservableObject, period 필터, heatmap/topSkills 계산
   StatsView.swift          Stats 탭 UI (기간 피커, 히트맵 7×24, 스킬 바 차트, 사용량 한도 설정)
   SettingsStore.swift      @MainActor, ~/.airuncat/settings.json (5h/주간 한도·리셋요일, 티어 프리셋)
-  UsageScanner.swift       Claude JSONL 메시지별 가중 소비 토큰 집계 (5h/주간 창, mtime 증분 캐시, 창밖 파일 스킵)
+  UsageScanner.swift       Claude JSONL 메시지별 소비 토큰 집계 (input+output+cache_creation, cache_read 제외; 5h/주간 창, mtime 증분 캐시, 창밖 파일 스킵)
   UsageStore.swift         @MainActor, 5h 롤링·주간 창 소비량·남은% 계산 (주간 리셋 앵커)
   TagStore.swift / CustomNameStore.swift / NotificationManager.swift
 build.sh                   release 빌드 + .app 번들 조립 + 자체 서명

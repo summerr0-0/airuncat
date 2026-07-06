@@ -27,10 +27,12 @@ struct TierPreset: Identifiable {
     let fiveHour: Int
     let weekly: Int
 
+    // 단위 = 소비 메트릭(input+output+cache_creation, cache_read 제외) 토큰.
+    // 실측 스케일(집중 사용 시 5h≈5M, 주≈12M)에 맞춘 근사 시작점 — 사용자가 보정.
     static let all: [TierPreset] = [
-        TierPreset(id: "Pro",     fiveHour:   300_000, weekly:  3_000_000),
-        TierPreset(id: "Max 5x",  fiveHour: 1_500_000, weekly: 15_000_000),
-        TierPreset(id: "Max 20x", fiveHour: 6_000_000, weekly: 60_000_000),
+        TierPreset(id: "Pro",     fiveHour:  2_000_000, weekly:   8_000_000),
+        TierPreset(id: "Max 5x",  fiveHour:  6_000_000, weekly:  30_000_000),
+        TierPreset(id: "Max 20x", fiveHour: 20_000_000, weekly: 120_000_000),
     ]
 }
 

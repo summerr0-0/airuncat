@@ -143,12 +143,12 @@ struct MenuContentView: View {
 
     @ViewBuilder
     private var usageBar: some View {
-        if settingsStore.settings.hasLimits {
+        let s = settingsStore.settings
+        // 축별 독립: 한쪽만 설정해도 게이지 표시. 둘 다 미설정일 때만 배너(M3).
+        if s.fiveHourLimit != nil || s.weeklyLimit != nil {
             HStack(spacing: 12) {
-                usageGauge(label: "5h", consumed: usageStore.fiveHourConsumed,
-                           limit: settingsStore.settings.fiveHourLimit)
-                usageGauge(label: "wk", consumed: usageStore.weeklyConsumed,
-                           limit: settingsStore.settings.weeklyLimit)
+                usageGauge(label: "5h", consumed: usageStore.fiveHourConsumed, limit: s.fiveHourLimit)
+                usageGauge(label: "wk", consumed: usageStore.weeklyConsumed, limit: s.weeklyLimit)
             }
         } else {
             // 한도 미입력 → 입력 유도 배너(R4.2). 소비 절대값은 표시, 클릭 시 Stats 탭.
@@ -174,9 +174,10 @@ struct MenuContentView: View {
     }
 
     private func usageGauge(label: String, consumed: Int, limit: Int?) -> some View {
+        let hasLimit = (limit ?? 0) > 0
         let remaining = UsageStore.remainingPercent(consumed: consumed, limit: limit)
         let over = UsageStore.isOverLimit(consumed: consumed, limit: limit)
-        let ratio = limit.map { min(1.0, Double(consumed) / Double(max(1, $0))) } ?? 0
+        let ratio = hasLimit ? min(1.0, Double(consumed) / Double(limit!)) : 0
         return HStack(spacing: 5) {
             Text(label)
                 .font(.system(size: 9, weight: .semibold, design: .monospaced))
@@ -184,19 +185,23 @@ struct MenuContentView: View {
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color.secondary.opacity(0.15))
-                    Capsule().fill(Self.gaugeColor(remaining: remaining, over: over))
-                        .frame(width: max(2, geo.size.width * ratio))
+                    if hasLimit {
+                        Capsule().fill(Self.gaugeColor(remaining: remaining, over: over))
+                            .frame(width: max(2, geo.size.width * ratio))
+                    }
                 }
             }
             .frame(height: 5)
-            // "~" = 근사치 표기(C3)
-            Text(over ? "초과" : "~\(Int(remaining ?? 0))%")
+            // 한도 있으면 "~n%"(근사 C3), 없으면 소비 절대값.
+            Text(!hasLimit ? Self.fmtK(consumed) : (over ? "초과" : "~\(Int(remaining ?? 0))%"))
                 .font(.system(size: 9, design: .monospaced))
-                .foregroundColor(over ? .orange : .secondary)
+                .foregroundColor(over ? .orange : (hasLimit ? .secondary : Color.secondary.opacity(0.6)))
                 .fixedSize()
         }
         .frame(maxWidth: .infinity)
-        .help("\(label): \(Self.fmtK(consumed)) / \(Self.fmtK(limit ?? 0)) 소비 (근사치)")
+        .help(hasLimit
+            ? "\(label): \(Self.fmtK(consumed)) / \(Self.fmtK(limit!)) 소비 (근사치)"
+            : "\(label): \(Self.fmtK(consumed)) 소비 · 한도 미설정 (Stats 탭에서 설정)")
     }
 
     private static func gaugeColor(remaining: Double?, over: Bool) -> Color {

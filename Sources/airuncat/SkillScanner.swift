@@ -136,6 +136,8 @@ enum SkillScanner {
 
     /// 한 프로젝트의 로컬 스킬을 모은다: `.claude/commands/*.md` + `.claude/skills/<n>/SKILL.md`.
     /// group = 프로젝트 폴더명(폴더 분리용). 같은 프로젝트 안에서 이름 중복은 한 번만.
+    /// 참고: 프로젝트 스킬은 global/native의 knownNames와 **일부러** 교차 dedup하지 않는다 —
+    /// 같은 이름이 스코프별로 존재할 수 있고(글로벌 vs 특정 프로젝트) 각 섹션에 보여주는 게 맞다.
     private static func projectSkills(cwd: String) -> [SkillRecord] {
         let fm = FileManager.default
         let label = projectLabel(cwd)

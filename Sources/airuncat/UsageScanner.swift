@@ -13,6 +13,7 @@ struct UsageFileCache: Codable, Sendable {
 
     struct FileEntry: Codable, Sendable {
         let mtime: TimeInterval
+        let size: Int              // 마지막 파싱 시 파일 크기 — 증분 tail-append 기준
         let events: [UsageEvent]
     }
 
@@ -60,23 +61,41 @@ enum UsageScanner {
                 cache.files.removeValue(forKey: path)
                 continue
             }
-            if let cached = cache.files[path], cached.mtime == mtime {
-                events.append(contentsOf: cached.events)
+            let size = fileSize(path)
+            if let cached = cache.files[path], cached.mtime == mtime, cached.size == size {
+                events.append(contentsOf: cached.events)   // 변화 없음
                 continue
             }
-            let parsed = parseEvents(path: path)
-            cache.files[path] = UsageFileCache.FileEntry(mtime: mtime, events: parsed)
-            events.append(contentsOf: parsed)
+            // 활성 세션 파일은 append-only로 자란다 → 커진 만큼(tail)만 파싱해 재읽기 비용을 줄인다(H1).
+            if let cached = cache.files[path], size > cached.size {
+                let tail = parseEvents(path: path, fromOffset: UInt64(cached.size))
+                let all = cached.events + tail
+                cache.files[path] = UsageFileCache.FileEntry(mtime: mtime, size: size, events: all)
+                events.append(contentsOf: all)
+            } else {
+                // 신규/재작성/축소 → 전체 파싱.
+                let parsed = parseEvents(path: path, fromOffset: 0)
+                cache.files[path] = UsageFileCache.FileEntry(mtime: mtime, size: size, events: parsed)
+                events.append(contentsOf: parsed)
+            }
         }
 
         saveCache(cache)
         return events
     }
 
-    // MARK: - Parse one file
+    private static func fileSize(_ path: String) -> Int {
+        ((try? FileManager.default.attributesOfItem(atPath: path))?[.size] as? Int) ?? 0
+    }
 
-    private static func parseEvents(path: String) -> [UsageEvent] {
-        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else { return [] }
+    // MARK: - Parse one file (offset부터 끝까지)
+
+    private static func parseEvents(path: String, fromOffset offset: UInt64) -> [UsageEvent] {
+        guard let fh = FileHandle(forReadingAtPath: path) else { return [] }
+        defer { try? fh.close() }
+        if offset > 0 { try? fh.seek(toOffset: offset) }
+        guard let data = try? fh.readToEnd() else { return [] }
+
         var out: [UsageEvent] = []
         for line in FileIOHelper.splitLines(data) {
             guard let obj = FileIOHelper.jsonObject(line),

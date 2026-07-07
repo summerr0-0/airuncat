@@ -7,8 +7,14 @@ final class UsageStore: ObservableObject {
     @Published private(set) var fiveHourConsumed = 0
     @Published private(set) var weeklyConsumed = 0
 
+    private var refreshing = false   // 재진입 가드 — 겹친 스캔의 캐시 lost-update 방지(M1)
+
     /// 창 소비량 재계산. tick마다 호출(UsageScanner가 mtime 증분 캐시로 비용 절감).
     func refresh(resetWeekday: Int, resetHour: Int) async {
+        guard !refreshing else { return }
+        refreshing = true
+        defer { refreshing = false }
+
         let now = Date()
         let nowEpoch = now.timeIntervalSince1970
         let events = await Task.detached(priority: .utility) {

@@ -235,7 +235,7 @@ struct StatsView: View {
 
     private var skillsSection: some View {
         let top = statsStore.topSkills(n: 5)
-        let maxCount = top.first?.count ?? 1
+        let maxCount = max(1, top.first?.count ?? 1)   // 0 나눗셈/NaN 방어
 
         return VStack(alignment: .leading, spacing: 4) {
             Text("자주 쓴 스킬")

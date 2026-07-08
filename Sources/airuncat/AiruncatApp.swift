@@ -25,8 +25,7 @@ struct AiruncatApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            MenuContentView(store: store, tagStore: store.tagStore,
-                            usageStore: store.usageStore, settingsStore: store.settingsStore)
+            MenuContentView(store: store, tagStore: store.tagStore, usageStore: store.usageStore)
                 .onAppear {
                     let s = store
                     appCtrl.registerShortcut {

@@ -18,7 +18,6 @@ struct MenuContentView: View {
     @ObservedObject var store: SessionStore
     @ObservedObject var tagStore: TagStore
     @ObservedObject var usageStore: UsageStore
-    @ObservedObject var settingsStore: SettingsStore
     @StateObject private var statsStore = StatsStore()
     @State private var activeTab: Tab = .sessions
     @State private var filter: FilterMode = .all
@@ -38,7 +37,7 @@ struct MenuContentView: View {
             } else if activeTab == .mcp {
                 MCPView()
             } else {
-                StatsView(statsStore: statsStore, settingsStore: settingsStore)
+                StatsView(statsStore: statsStore)
             }
             Divider()
             footer
@@ -139,45 +138,36 @@ struct MenuContentView: View {
         .padding(.vertical, 8)
     }
 
-    // MARK: - 사용량 창 (5h·주간) — R4
+    // MARK: - 사용량 (Anthropic 공식 API 실제 %)
 
     @ViewBuilder
     private var usageBar: some View {
-        let s = settingsStore.settings
-        // 축별 독립: 한쪽만 설정해도 게이지 표시. 둘 다 미설정일 때만 배너(M3).
-        if s.fiveHourLimit != nil || s.weeklyLimit != nil {
+        if let snap = usageStore.snapshot {
             HStack(spacing: 12) {
-                usageGauge(label: "5h", consumed: usageStore.fiveHourConsumed, limit: s.fiveHourLimit)
-                usageGauge(label: "wk", consumed: usageStore.weeklyConsumed, limit: s.weeklyLimit)
-            }
-        } else {
-            // 한도 미입력 → 입력 유도 배너(R4.2). 소비 절대값은 표시, 클릭 시 Stats 탭.
-            Button { switchTab(.stats) } label: {
-                HStack(spacing: 5) {
-                    Image(systemName: "gauge.with.dots.needle.bottom.50percent")
-                        .font(.system(size: 9))
-                    Text("사용량 한도 설정  ·  5h \(Self.fmtK(usageStore.fiveHourConsumed)) · wk \(Self.fmtK(usageStore.weeklyConsumed)) 소비")
-                        .font(.system(size: 9))
-                        .lineLimit(1)
-                    Spacer(minLength: 0)
-                    Image(systemName: "chevron.right").font(.system(size: 7))
+                usageGauge(label: "5h", percent: snap.fiveHourPercent, resetsAt: snap.fiveHourResetsAt)
+                if let wk = snap.weeklyPercent {
+                    usageGauge(label: "wk", percent: wk, resetsAt: snap.weeklyResetsAt)
                 }
-                .foregroundColor(.secondary)
-                .padding(.horizontal, 7).padding(.vertical, 4)
-                .frame(maxWidth: .infinity)
-                .background(RoundedRectangle(cornerRadius: 5)
-                    .fill(AiruncatDesign.aiColor(.claude).opacity(0.08)))
             }
-            .buttonStyle(.plain)
-            .help("Stats 탭에서 플랜 한도를 입력하면 남은 %가 표시됩니다 (근사치)")
+        } else if let err = usageStore.error {
+            HStack(spacing: 5) {
+                Image(systemName: "exclamationmark.triangle").font(.system(size: 8))
+                Text("사용량 \(err.hint)").font(.system(size: 9))
+                Spacer(minLength: 0)
+            }
+            .foregroundColor(.secondary)
+            .help("Anthropic 사용량 API 호출 실패 — \(err.hint)")
+        } else {
+            Text("사용량 불러오는 중…")
+                .font(.system(size: 9)).foregroundColor(Color.secondary.opacity(0.6))
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
-    private func usageGauge(label: String, consumed: Int, limit: Int?) -> some View {
-        let hasLimit = (limit ?? 0) > 0
-        let remaining = UsageStore.remainingPercent(consumed: consumed, limit: limit)
-        let over = UsageStore.isOverLimit(consumed: consumed, limit: limit)
-        let ratio = hasLimit ? min(1.0, Double(consumed) / Double(limit!)) : 0
+    /// utilization %(서버 실제값) 게이지 + 리셋 카운트다운.
+    private func usageGauge(label: String, percent: Double, resetsAt: Date?) -> some View {
+        let pct = min(100, max(0, percent))
+        let reset = Self.resetCountdown(resetsAt)
         return HStack(spacing: 5) {
             Text(label)
                 .font(.system(size: 9, weight: .semibold, design: .monospaced))
@@ -185,37 +175,42 @@ struct MenuContentView: View {
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color.secondary.opacity(0.15))
-                    if hasLimit {
-                        Capsule().fill(Self.gaugeColor(remaining: remaining, over: over))
-                            .frame(width: max(2, geo.size.width * ratio))
-                    }
+                    Capsule().fill(Self.gaugeColor(pct))
+                        .frame(width: max(2, geo.size.width * pct / 100))
                 }
             }
             .frame(height: 5)
-            // 한도 있으면 "~n%"(근사 C3), 없으면 소비 절대값.
-            Text(!hasLimit ? Self.fmtK(consumed) : (over ? "초과" : "~\(Int(remaining ?? 0))%"))
+            Text("\(Int(pct.rounded()))%")
                 .font(.system(size: 9, design: .monospaced))
-                .foregroundColor(over ? .orange : (hasLimit ? .secondary : Color.secondary.opacity(0.6)))
+                .foregroundColor(Self.gaugeColor(pct))
                 .fixedSize()
+            if let reset {
+                Text(reset)
+                    .font(.system(size: 8, design: .monospaced))
+                    .foregroundColor(Color.secondary.opacity(0.7))
+                    .fixedSize()
+            }
         }
         .frame(maxWidth: .infinity)
-        .help(hasLimit
-            ? "\(label): \(Self.fmtK(consumed)) / \(Self.fmtK(limit!)) 소비 (근사치)"
-            : "\(label): \(Self.fmtK(consumed)) 소비 · 한도 미설정 (Stats 탭에서 설정)")
+        .help("\(label): \(Int(pct.rounded()))% 사용" + (reset.map { " · \($0) 후 리셋" } ?? ""))
     }
 
-    private static func gaugeColor(remaining: Double?, over: Bool) -> Color {
-        if over { return .orange }
-        guard let r = remaining else { return AiruncatDesign.aiColor(.claude).opacity(0.7) }
-        if r < 15 { return .orange }
-        if r < 40 { return .yellow }
+    /// 사용률 색(OMC 임계 70/90). 낮을수록 여유(Claude 보라), 높을수록 경고.
+    private static func gaugeColor(_ pct: Double) -> Color {
+        if pct >= 90 { return .red }
+        if pct >= 70 { return .orange }
         return AiruncatDesign.aiColor(.claude).opacity(0.75)
     }
 
-    private static func fmtK(_ n: Int) -> String {
-        if n >= 1_000_000 { return String(format: "%.1fM", Double(n) / 1_000_000) }
-        if n >= 1000 { return "\(n / 1000)k" }
-        return "\(n)"
+    /// 리셋까지 남은 시간 "3h42m" / "2d5h". 지났으면 nil.
+    private static func resetCountdown(_ date: Date?) -> String? {
+        guard let date else { return nil }
+        let secs = Int(date.timeIntervalSinceNow)
+        guard secs > 0 else { return nil }
+        let m = secs / 60, h = m / 60, d = h / 24
+        if d > 0 { return "\(d)d\(h % 24)h" }
+        if h > 0 { return "\(h)h\(m % 60)m" }
+        return "\(m)m"
     }
 
     private var waitingCount: Int {

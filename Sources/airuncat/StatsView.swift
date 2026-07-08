@@ -2,10 +2,6 @@ import SwiftUI
 
 struct StatsView: View {
     @ObservedObject var statsStore: StatsStore
-    @ObservedObject var settingsStore: SettingsStore
-
-    @State private var fiveHourText = ""
-    @State private var weeklyText = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -25,8 +21,6 @@ struct StatsView: View {
                             Divider().padding(.vertical, 4)
                             skillsSection
                         }
-                        Divider().padding(.vertical, 4)
-                        usageSettingsSection
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
@@ -35,89 +29,6 @@ struct StatsView: View {
             }
         }
         .task { await statsStore.refresh() }
-        .onAppear { syncFields() }
-    }
-
-    // MARK: - 사용량 한도 설정 (R5.2, R5.3)
-
-    private var usageSettingsSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("사용량 한도 (근사치, 가중 토큰)")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundColor(.secondary)
-
-            // 티어 프리셋 — 근사 시작점(D10)
-            HStack(spacing: 6) {
-                ForEach(TierPreset.all) { preset in
-                    Button(preset.id) {
-                        settingsStore.applyPreset(preset)
-                        syncFields()
-                    }
-                    .buttonStyle(.plain)
-                    .font(.system(size: 9, weight: .medium))
-                    .padding(.horizontal, 7).padding(.vertical, 3)
-                    .background(RoundedRectangle(cornerRadius: 4)
-                        .fill(AiruncatDesign.aiColor(.claude).opacity(0.12)))
-                    .foregroundColor(AiruncatDesign.aiColor(.claude))
-                }
-            }
-
-            // 한도 직접 입력
-            HStack(spacing: 8) {
-                limitField(label: "5h", text: $fiveHourText)
-                limitField(label: "wk", text: $weeklyText)
-            }
-
-            // 주간 리셋 요일
-            HStack(spacing: 6) {
-                Text("주간 리셋")
-                    .font(.system(size: 9)).foregroundColor(.secondary)
-                Picker("", selection: Binding(
-                    get: { settingsStore.settings.weeklyResetWeekday },
-                    set: { settingsStore.setWeeklyReset(weekday: $0, hour: settingsStore.settings.weeklyResetHour) }
-                )) {
-                    ForEach(0..<7, id: \.self) { wd in
-                        Text(Self.weekdayNames[wd]).tag(wd)
-                    }
-                }
-                .labelsHidden()
-                .frame(width: 70)
-            }
-
-            Text("실제 벽에 부딪힌 시점을 보고 숫자를 보정하세요.")
-                .font(.system(size: 8))
-                .foregroundColor(.secondary.opacity(0.7))
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func limitField(label: String, text: Binding<String>) -> some View {
-        HStack(spacing: 4) {
-            Text(label)
-                .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                .foregroundColor(.secondary)
-            TextField("한도", text: text)
-                .textFieldStyle(.plain)
-                .font(.system(size: 9, design: .monospaced))
-                .frame(width: 74)
-                .padding(.horizontal, 5).padding(.vertical, 3)
-                .background(RoundedRectangle(cornerRadius: 4).fill(Color.primary.opacity(0.06)))
-                .onSubmit { commitLimits() }
-        }
-    }
-
-    private static let weekdayNames = ["월", "화", "수", "목", "금", "토", "일"]
-
-    private func syncFields() {
-        fiveHourText = settingsStore.settings.fiveHourLimit.map(String.init) ?? ""
-        weeklyText = settingsStore.settings.weeklyLimit.map(String.init) ?? ""
-    }
-
-    private func commitLimits() {
-        let five = Int(fiveHourText.filter(\.isNumber))
-        let week = Int(weeklyText.filter(\.isNumber))
-        settingsStore.setLimits(fiveHour: five, weekly: week)
-        syncFields()
     }
 
     // MARK: - Period picker

@@ -52,6 +52,8 @@ struct SessionInfo: Identifiable {
     var modelName: String? = nil  // Gemini model string; nil for Claude
     var contextTokens: Int? = nil    // 최신 assistant usage: input + cache_read + cache_creation (raw, 창 점유)
     var durationSeconds: Int? = nil  // 첫 이벤트 timestamp ~ 마지막 활동(mtime)
+    var activePayloadBytes: Int? = nil  // compact 이후 활성 payload 근사 (R7, ≥22MB일 때만 채움)
+    var isThinking: Bool = false        // 최신 assistant에 thinking 블록 + 30s 내 활동 (R9c)
 
     var status: SessionStatus { SessionStatus(lastActivity: lastActivity) }
     var displayName: String { customName ?? projectName }
@@ -161,6 +163,8 @@ struct SessionScanner {
         var foundLastAssistant = false
         var foundLastUser = false
         var contextTokens: Int? = nil        // 최신 assistant usage 합산(raw)
+        var tailSessionIds = Set<String>()    // R9a: tail에 세션ID 2개↑면 부분 읽기 오표시 방지
+        var isThinking = false                // R9c: 최신 assistant의 thinking 블록
         var completedToolIds = Set<String>()  // tool_use IDs that already have a tool_result
         var activeSkill: String? = nil
         var foundSkillCheck = false           // true once we've examined the most recent Skill call
@@ -168,6 +172,7 @@ struct SessionScanner {
         for line in backwardLines.reversed() {
             guard let obj = FileIOHelper.jsonObject(line) else { continue }
             captureContext(obj, cwd: &cwd, branch: &gitBranch)
+            if let sid = obj["sessionId"] as? String { tailSessionIds.insert(sid) }
             let evType = obj["type"] as? String ?? ""
             guard evType == "user" || evType == "assistant" else { continue }
 
@@ -198,6 +203,13 @@ struct SessionScanner {
                         toolName = name
                         toolDetail = detail
                         lastAssistantHasTool = true
+                    }
+                    // R9c: 최신 assistant에 thinking 블록이 있고 30초 내 활동이면 "생각 중".
+                    if let msg = obj["message"] as? [String: Any],
+                       let arr = msg["content"] as? [[String: Any]],
+                       arr.contains(where: { ($0["type"] as? String) == "thinking" }),
+                       Date().timeIntervalSince(mtime) < 30 {
+                        isThinking = true
                     }
                 } else if toolName.isEmpty {
                     // keep scanning earlier assistant events until we find a tool call
@@ -249,6 +261,14 @@ struct SessionScanner {
         // duration: 첫 이벤트 ~ 마지막 활동(mtime). 첫 timestamp 없으면 nil.
         let durationSeconds: Int? = firstTimestamp.map { max(0, Int(mtime.timeIntervalSince($0))) }
 
+        // R9a 신뢰성 가드: tail에 서로 다른 세션ID가 섞여 있으면(부분 읽기/브랜치)
+        // 최신 usage가 이 세션 것이라 보장 못 함 → 틀린 숫자 대신 미표시.
+        if tailSessionIds.count >= 2 { contextTokens = nil }
+
+        // R7 payload 압력: 22MB 미만이면 boundary를 빼도 임계 미달이라 스캔 생략.
+        let activePayloadBytes: Int? = size >= payloadWarnBytes
+            ? activePayload(path: path, size: size) : nil
+
         let sessionStatus = SessionStatus(lastActivity: mtime)
         let workState: WorkState
         if lastEventRole == "user" || lastAssistantHasTool {
@@ -279,8 +299,39 @@ struct SessionScanner {
             workState: workState,
             aiKind: .claude,
             contextTokens: contextTokens,
-            durationSeconds: durationSeconds
+            durationSeconds: durationSeconds,
+            activePayloadBytes: activePayloadBytes,
+            isThinking: isThinking
         )
+    }
+
+    // MARK: - Payload pressure (R7)
+
+    /// 경고 임계 22MB — 이 미만 파일은 스캔 자체를 생략(성능).
+    static let payloadWarnBytes = 22 * 1024 * 1024
+    static let payloadCritBytes = 26 * 1024 * 1024
+    static let payloadLimitBytes = 32 * 1024 * 1024
+
+    /// compact 이후 활성 payload 근사(OMC payload-estimate.ts 방식):
+    /// 파일 뒤에서 64KB 청크로 `compact_boundary` 마커를 역스캔, 있으면 size - offset.
+    private static func activePayload(path: String, size: Int) -> Int? {
+        guard let fh = FileHandle(forReadingAtPath: path) else { return size }
+        defer { try? fh.close() }
+        let chunk = 65536
+        let marker = Data("compact_boundary".utf8)
+        var end = size
+        while end > 0 {
+            let start = max(0, end - chunk)
+            guard (try? fh.seek(toOffset: UInt64(start))) != nil,
+                  let data = try? fh.read(upToCount: end - start) else { break }
+            if let range = data.range(of: marker, options: .backwards) {
+                return size - (start + range.lowerBound)   // 마커 위치부터가 활성 payload
+            }
+            // 청크 경계에 마커가 걸치는 경우 대비, 마커 길이만큼 겹쳐서 후퇴.
+            end = start + (start > 0 ? marker.count - 1 : 0)
+            if end <= marker.count { break }
+        }
+        return size   // 마커 없음 = compact 이력 없음 → 전체가 활성
     }
 
     // MARK: - Field extraction

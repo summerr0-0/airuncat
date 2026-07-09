@@ -422,9 +422,11 @@ stdin 캐시가 있으면 그걸 쓰고, 없으면 지금 방식(토큰 합산) 
 - **Fulfills**: R6
 - **Depends on**: T2 — T3/T4와 병렬 가능
 
-### T6: 세션 표시 개선 1 (R7 payload + R9 소품) [P2~P3]
-- **Fulfills**: R7, R9
+### T6: 세션 표시 개선 1 (R7 payload + R9 소품) [P2~P3] — **완료**
+- **Fulfills**: R7, R9a, R9c (R9b 지터 안정화는 stdin 데이터 의존 → **T4로 이관**)
 - **Depends on**: (none) — SessionScanner/행 UI 묶음, T1·T2와 병렬 가능
+- 구현 노트: compact_boundary 마커 실물 확인(`"subtype":"compact_boundary"` system 이벤트).
+  payload 스캔은 22MB↑ 파일에서만(성능). R9a는 tail의 `sessionId` 필드 distinct 카운트.
 
 ### T7: rate-limit 리셋 알림 (R8) [P2]
 - **Fulfills**: R8

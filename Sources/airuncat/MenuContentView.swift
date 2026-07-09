@@ -451,8 +451,10 @@ private struct SessionRow: View {
     @State private var claudeMdExists: Bool = false
     @State private var expanded = false
 
-    /// 펼칠 상세(토큰/지속시간)가 있을 때만 disclosure 노출.
-    private var hasDetail: Bool { session.contextTokens != nil || session.durationSeconds != nil }
+    /// 펼칠 상세(토큰/지속시간/payload)가 있을 때만 disclosure 노출.
+    private var hasDetail: Bool {
+        session.contextTokens != nil || session.durationSeconds != nil || session.activePayloadBytes != nil
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
@@ -616,6 +618,7 @@ private struct SessionRow: View {
     }
 
     private var activity: String {
+        if session.isThinking { return "생각 중…" }   // R9c: 도구 없이 추론 중일 때
         guard !session.toolName.isEmpty else { return "" }
         return session.toolDetail.isEmpty ? session.toolName : "\(session.toolName): \(session.toolDetail)"
     }
@@ -639,19 +642,47 @@ private struct SessionRow: View {
     // MARK: - 펼침 상세 (토큰·지속시간·활동)
 
     private var expandedDetail: some View {
-        HStack(alignment: .center, spacing: 14) {
-            if let tokens = session.contextTokens {
-                contextGauge(tokens)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .center, spacing: 14) {
+                if let tokens = session.contextTokens {
+                    contextGauge(tokens)
+                }
+                if let dur = session.durationSeconds {
+                    Text("\(Self.formatDuration(dur)) 지속 · \(relativeTime) 전 활동")
+                        .font(.system(size: 9))
+                        .foregroundColor(Color.secondary.opacity(0.9))
+                }
+                Spacer(minLength: 0)
             }
-            if let dur = session.durationSeconds {
-                Text("\(Self.formatDuration(dur)) 지속 · \(relativeTime) 전 활동")
-                    .font(.system(size: 9))
-                    .foregroundColor(Color.secondary.opacity(0.9))
+            // R7: API 요청 32MB 한계 압력 — 22MB↑에서만 노출(경고 22/위험 26)
+            if let payload = session.activePayloadBytes, payload >= SessionScanner.payloadWarnBytes {
+                payloadGauge(payload)
             }
-            Spacer(minLength: 0)
         }
         .padding(.leading, 27)   // C 배지/텍스트 열 아래 정렬
         .padding(.trailing, 2)
+    }
+
+    /// payload 압력 게이지: "~23MB / 32MB" (22MB 노랑 / 26MB 빨강).
+    private func payloadGauge(_ bytes: Int) -> some View {
+        let limit = SessionScanner.payloadLimitBytes
+        let ratio = min(1.0, Double(bytes) / Double(limit))
+        let color: Color = bytes >= SessionScanner.payloadCritBytes ? .red : .yellow
+        let mb = Double(bytes) / 1_048_576
+        return HStack(spacing: 5) {
+            Text(String(format: "payload ~%.0fMB / 32MB", mb))
+                .font(.system(size: 9, design: .monospaced))
+                .foregroundColor(color)
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.secondary.opacity(0.15))
+                    Capsule().fill(color.opacity(0.8))
+                        .frame(width: max(2, geo.size.width * ratio))
+                }
+            }
+            .frame(width: 80, height: 4)
+        }
+        .help("API 요청 payload 근사치 — 32MB 한계에 가까워지면 /compact 권장")
     }
 
     /// 컨텍스트 창 채움 게이지: "82k / 200k (41%)" + 채움 바(200k 분모, 100% clamp).

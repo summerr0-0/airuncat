@@ -14,6 +14,11 @@ final class UsageStore: ObservableObject {
     private var lastSuccessAt: Date? = nil
     private var nextAllowedFetch: Date? = nil
     private var rateLimitedCount = 0   // 연속 429 횟수(지수 백오프)
+    private var alertedWindows: Set<String> = []   // R8: 임계 초과 알림을 보낸 창("5h"/"wk")
+
+    // R8 임계: 상향 90%에서 경고, 하향 80% 밑으로 내려오면 "리셋/여유 회복" 알림(히스테리시스).
+    private let alertHighPct = 90.0
+    private let alertLowPct = 80.0
 
     // R2 상수 (OMC usage-api.ts 준거)
     private let successTTL: TimeInterval = 60
@@ -38,6 +43,7 @@ final class UsageStore: ObservableObject {
             lastSuccessAt = now
             rateLimitedCount = 0
             nextAllowedFetch = now.addingTimeInterval(successTTL)
+            checkUsageAlerts(snap)
 
         case .failure(let e):
             error = e
@@ -58,6 +64,35 @@ final class UsageStore: ObservableObject {
                 snapshot = nil
                 isStale = false
             }
+        }
+    }
+
+    // MARK: - 임계/리셋 알림 (R8, D6)
+
+    /// 상향 90% 교차 시 경고 1회, 이후 하향 80% 교차 시(리셋 등) "여유 회복" 1회.
+    /// 임계 교차 기반이라 resets_at 시각을 따로 추적하지 않아도 리셋을 감지한다.
+    private func checkUsageAlerts(_ snap: UsageSnapshot) {
+        checkWindow(key: "5h", label: "5시간 창", percent: snap.fiveHourPercent,
+                    resetsAt: snap.fiveHourResetsAt)
+        if let wk = snap.weeklyPercent {
+            checkWindow(key: "wk", label: "주간 창", percent: wk, resetsAt: snap.weeklyResetsAt)
+        }
+    }
+
+    private func checkWindow(key: String, label: String, percent: Double, resetsAt: Date?) {
+        if percent >= alertHighPct, !alertedWindows.contains(key) {
+            alertedWindows.insert(key)
+            var body = "사용량 \(Int(percent.rounded()))% — 한도 임박"
+            if let r = resetsAt, r > Date() {
+                let mins = Int(r.timeIntervalSinceNow / 60)
+                body += " (리셋까지 \(mins >= 60 ? "\(mins / 60)시간 \(mins % 60)분" : "\(mins)분"))"
+            }
+            NotificationManager.shared.sendUsageAlert(id: key, title: "Claude \(label)", body: body)
+        } else if percent < alertLowPct, alertedWindows.contains(key) {
+            alertedWindows.remove(key)
+            NotificationManager.shared.sendUsageAlert(
+                id: key, title: "Claude \(label)",
+                body: "여유 회복 — 현재 \(Int(percent.rounded()))%")
         }
     }
 }

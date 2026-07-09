@@ -428,9 +428,11 @@ stdin 캐시가 있으면 그걸 쓰고, 없으면 지금 방식(토큰 합산) 
 - 구현 노트: compact_boundary 마커 실물 확인(`"subtype":"compact_boundary"` system 이벤트).
   payload 스캔은 22MB↑ 파일에서만(성능). R9a는 tail의 `sessionId` 필드 distinct 카운트.
 
-### T7: rate-limit 리셋 알림 (R8) [P2]
+### T7: rate-limit 리셋 알림 (R8) [P2] — **완료**
 - **Fulfills**: R8
 - **Depends on**: T1 (UsageStore snapshot의 resets_at 사용)
+- 구현 노트: 임계 교차 기반(상향 90% 경고 / 하향 80% "여유 회복" — 히스테리시스로 플래핑 방지).
+  resets_at 시각 추적 없이 리셋 자동 감지. 잔여 검증: 실사용에서 90% 도달 시 알림 관찰.
 
 ### T8: friction 배지 (R10) [P3]
 - **Fulfills**: R10

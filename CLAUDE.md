@@ -35,6 +35,7 @@ Sources/airuncat/
   HarnessScoring.swift     5축 성숙도 채점 (HarnessGrade A~F, AxisResult, evaluate — 프로젝트-로컬 정적 신호만), HarnessSetupAction
   HarnessSetup.swift       ✗ 항목 자동 보완 (CLAUDE.md/rule/deny권한 생성, hook 비활성 템플릿)
   RuleManager.swift        rule 파일 create/delete (원자 쓰기)
+  HookRecipeManager.swift  훅 레시피 설치/제거 (스크립트 ~/.claude/hooks/airuncat-*.sh + settings.json 원자 병합, 상태 ~/.airuncat/hook-state/), --hook-recipe CLI
   GlobalShortcut.swift     CGEvent tap ⌥Space 글로벌 단축키 등록·해제 (HandlerBox, CFMachPort)
   ApplicationController.swift  @MainActor ObservableObject, tap CFMachPort 생명주기 관리
   PaletteViewModel.swift   스킬+프롬프트 통합 검색·필터·히스토리 (palette-history.json)

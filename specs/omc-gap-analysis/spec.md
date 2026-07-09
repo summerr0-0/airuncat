@@ -400,10 +400,15 @@ stdin 캐시가 있으면 그걸 쓰고, 없으면 지금 방식(토큰 합산) 
 - 같은 파일(UsageAPIClient/UsageStore)이라 한 태스크로 묶음.
 - 잔여 검증: 실제 토큰 만료 시점(≤5h 내 자연 발생)에 헤더가 %로 자동 복귀하는지 관찰.
 
-### T2: 훅 레시피 설치 인프라 (R5) [P2]
+### T2: 훅 레시피 설치 인프라 (R5) [P2] — **완료**
 - **Fulfills**: R5
 - **Depends on**: (none) — T1과 병렬 가능(다른 파일)
 - settings.json 원자 갱신 유틸은 T3도 재사용.
+- 구현 노트: **실제 settings.json hooks 형식은 OMC 리포트와 다름** —
+  `{matcher: "도구정규식"?, hooks: [{type:"command", command, timeout?}]}` (로컬 실물 기준).
+  파일럿 레시피 session-telemetry(R6a 최소형) 포함. `--hook-recipe` 디버그 CLI로
+  R5.1 왕복 검증 통과(의미상 원형 복원). 알려진 한계: settings.json read-modify-write는
+  무락(無lock) — Claude Code 동시 갱신과 이론상 레이스(Claude Code 자체 동작과 동일 수준).
 
 ### T3: statusline 레시피 (R3) [P2]
 - **Fulfills**: R3

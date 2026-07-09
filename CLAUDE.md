@@ -42,8 +42,8 @@ Sources/airuncat/
   StatsScanner.swift       ~/.claude/projects/ JSONL 집계 (mtime 증분 캐시, tool_use Skill 집계)
   StatsStore.swift         @MainActor ObservableObject, period 필터, heatmap/topSkills 계산
   StatsView.swift          Stats 탭 UI (기간 피커, 히트맵 7×24, 스킬 바 차트)
-  UsageAPIClient.swift     Keychain(Claude Code-credentials) OAuth 토큰으로 Anthropic /api/oauth/usage 호출 → 5h/주간 실제 utilization·resets_at 파싱
-  UsageStore.swift         @MainActor, 사용량 API 결과 게시 (60s TTL, 에러상태). 헤더에 실제 %·리셋 카운트다운
+  UsageAPIClient.swift     Keychain OAuth 토큰으로 /api/oauth/usage 호출 (5h/주간 실제 %·resets_at) + 만료 시 lazy 토큰 리프레시(레이스 방어, Keychain 병합 재기록)
+  UsageStore.swift         @MainActor, 사용량 게시 (오류별 TTL, 429 지수백오프, stale 서빙 15min → 헤더 * 배지)
   TagStore.swift / CustomNameStore.swift / NotificationManager.swift
 build.sh                   release 빌드 + .app 번들 조립 + 자체 서명
 ```

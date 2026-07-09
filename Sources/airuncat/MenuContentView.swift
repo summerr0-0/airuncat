@@ -144,9 +144,11 @@ struct MenuContentView: View {
     private var usageBar: some View {
         if let snap = usageStore.snapshot {
             HStack(spacing: 12) {
-                usageGauge(label: "5h", percent: snap.fiveHourPercent, resetsAt: snap.fiveHourResetsAt)
+                usageGauge(label: "5h", percent: snap.fiveHourPercent, resetsAt: snap.fiveHourResetsAt,
+                           stale: usageStore.isStale)
                 if let wk = snap.weeklyPercent {
-                    usageGauge(label: "wk", percent: wk, resetsAt: snap.weeklyResetsAt)
+                    usageGauge(label: "wk", percent: wk, resetsAt: snap.weeklyResetsAt,
+                               stale: usageStore.isStale)
                 }
             }
         } else if let err = usageStore.error {
@@ -164,8 +166,8 @@ struct MenuContentView: View {
         }
     }
 
-    /// utilization %(서버 실제값) 게이지 + 리셋 카운트다운.
-    private func usageGauge(label: String, percent: Double, resetsAt: Date?) -> some View {
+    /// utilization %(서버 실제값) 게이지 + 리셋 카운트다운. stale=오류 중 직전 값 재사용(* 배지, R2).
+    private func usageGauge(label: String, percent: Double, resetsAt: Date?, stale: Bool = false) -> some View {
         let pct = min(100, max(0, percent))
         let reset = Self.resetCountdown(resetsAt)
         return HStack(spacing: 5) {
@@ -175,14 +177,14 @@ struct MenuContentView: View {
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color.secondary.opacity(0.15))
-                    Capsule().fill(Self.gaugeColor(pct))
+                    Capsule().fill(Self.gaugeColor(pct).opacity(stale ? 0.5 : 1))
                         .frame(width: max(2, geo.size.width * pct / 100))
                 }
             }
             .frame(height: 5)
-            Text("\(Int(pct.rounded()))%")
+            Text("\(Int(pct.rounded()))%\(stale ? "*" : "")")
                 .font(.system(size: 9, design: .monospaced))
-                .foregroundColor(Self.gaugeColor(pct))
+                .foregroundColor(stale ? .secondary : Self.gaugeColor(pct))
                 .fixedSize()
             if let reset {
                 Text(reset)
@@ -192,7 +194,9 @@ struct MenuContentView: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .help("\(label): \(Int(pct.rounded()))% 사용" + (reset.map { " · \($0) 후 리셋" } ?? ""))
+        .help("\(label): \(Int(pct.rounded()))% 사용"
+            + (reset.map { " · \($0) 후 리셋" } ?? "")
+            + (stale ? " · 일시 오류 — 직전 값 표시 중" : ""))
     }
 
     /// 사용률 색(OMC 임계 70/90). 낮을수록 여유(Claude 보라), 높을수록 경고.

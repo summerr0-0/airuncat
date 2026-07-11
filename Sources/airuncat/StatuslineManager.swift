@@ -32,6 +32,9 @@ enum StatuslineManager {
     /// 설치: 스크립트 기록 + settings.json statusLine 등록. 기존(외부) 설정이 있으면 거부(C5).
     @discardableResult
     static func install() -> String? {
+        if HookRecipeManager.settingsCorrupt() {
+            return "settings.json 파싱 불가 — 수동 확인 필요(덮어쓰지 않음)"
+        }
         if case .foreign(let cmd) = status() {
             return "기존 statusline이 있어 덮지 않습니다: \(cmd)"
         }
@@ -63,7 +66,8 @@ enum StatuslineManager {
     // MARK: - Script
 
     /// stdin JSON → 세션별 캐시(원자 쓰기, ±3% 지터 안정화=R9b) + 간단한 상태줄 출력.
-    private static let script = """
+    /// internal — Global 탭의 스크립트 미리보기(15.1)에서 사용.
+    static let script = """
     #!/bin/sh
     # airuncat statusline: stdin JSON 캐시 + "모델 · ctx N%" 출력
     INPUT=$(cat)

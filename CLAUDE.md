@@ -35,7 +35,8 @@ Sources/airuncat/
   HarnessScoring.swift     5축 성숙도 채점 (HarnessGrade A~F, AxisResult, evaluate — 프로젝트-로컬 정적 신호만), HarnessSetupAction
   HarnessSetup.swift       ✗ 항목 자동 보완 (CLAUDE.md/rule/deny권한 생성, hook 비활성 템플릿)
   RuleManager.swift        rule 파일 create/delete (원자 쓰기)
-  HookRecipeManager.swift  훅 레시피 설치/제거 (스크립트 ~/.claude/hooks/airuncat-*.sh + settings.json 원자 병합, 상태 ~/.airuncat/hook-state/), --hook-recipe CLI
+  HookRecipeManager.swift  훅 레시피 설치/제거 (스크립트 ~/.claude/hooks/airuncat-*.sh + settings.json 원자 병합, 상태 ~/.airuncat/hook-state/), --hook-recipe CLI. 레시피 3종: 세션 텔레메트리/서브에이전트 트래커/rules 주입기
+  StatuslineManager.swift  Claude Code statusline 설치/제거 (C5: 기존 설정 보호) — stdin JSON을 세션별 캐시(±3% 안정화) 후 "모델·ctx%" 출력, nativeContext(sessionId) 조회. --statusline CLI
   GlobalShortcut.swift     CGEvent tap ⌥Space 글로벌 단축키 등록·해제 (HandlerBox, CFMachPort)
   ApplicationController.swift  @MainActor ObservableObject, tap CFMachPort 생명주기 관리
   PaletteViewModel.swift   스킬+프롬프트 통합 검색·필터·히스토리 (palette-history.json)
@@ -62,7 +63,9 @@ build.sh                   release 빌드 + .app 번들 조립 + 자체 서명
 | MCP 활성 상태 | `~/.claude/settings.local.json` (`enabledMcpjsonServers` 배열) |
 | 팔레트 이력 | `~/.airuncat/palette-history.json` (최근 50건, 원자 쓰기) |
 | 통계 캐시 | `~/.airuncat/stats-cache.json` (SessionStat 배열, mtime 증분) |
-| 사용량 자격증명 | macOS Keychain `Claude Code-credentials` (읽기 전용, Claude Code OAuth 토큰) |
+| 사용량 자격증명 | macOS Keychain `Claude Code-credentials` (Claude Code OAuth 토큰; 만료 시 lazy 리프레시 병합 재기록) |
+| 훅 상태 | `~/.airuncat/hook-state/sessions/<id>/` (metrics.json, subagents.jsonl, injected-rules.json) |
+| statusline 캐시 | `~/.airuncat/hook-state/statusline/<sessionId>.json` (네이티브 ctx %·rate limits·모델) |
 
 **스킬 수동 추가:** `~/.airuncat/skills/SKILL_[NAME].md` 생성 → 앱 C/G 배지 토글로 링크
 **프롬프트 수동 추가:** `~/.airuncat/prompts/<name>.md` 생성 → 새로고침

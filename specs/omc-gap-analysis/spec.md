@@ -410,13 +410,19 @@ stdin 캐시가 있으면 그걸 쓰고, 없으면 지금 방식(토큰 합산) 
   R5.1 왕복 검증 통과(의미상 원형 복원). 알려진 한계: settings.json read-modify-write는
   무락(無lock) — Claude Code 동시 갱신과 이론상 레이스(Claude Code 자체 동작과 동일 수준).
 
-### T3: statusline 레시피 (R3) [P2]
-- **Fulfills**: R3
-- **Depends on**: T2 (settings.json 갱신 유틸 공유) + Pre-work 2(stdin 샘플 캡처)
+### T3: statusline 레시피 (R3) [P2] — **완료**
+- **Fulfills**: R3 (+R9b 지터 안정화를 스크립트에 내장)
+- **Depends on**: T2 (settings.json 갱신 유틸 공유) + Pre-work 2(stdin 샘플 캡처) **완료**
+- 구현 노트: StatuslineManager(설치/제거/status, C5 외부 설정 감지 시 거부).
+  실샘플 캡처 성공 — 필드 확정: `context_window.used_percentage/context_window_size`,
+  `rate_limits.five_hour/seven_day`, `model.display_name`, `session_name`, `cost` 등.
+  **context_window_size가 세션마다 다름 확인(200k/1M)** — 고정 200k 가정(D8)의 한계 실증.
 
-### T4: 네이티브 컨텍스트 % (R4) [P2]
+### T4: 네이티브 컨텍스트 % (R4) [P2] — **완료**
 - **Fulfills**: R4
 - **Depends on**: T3
+- 구현 노트: 행 확장 게이지가 statusline 캐시(nativeContext) 우선 — "ctx 49% · 1M 창" 형식,
+  캐시 없는 세션은 기존 합산(82k/200k) 폴백.
 
 ### T5: 레시피 3종 (R6a/b/c) [P2~P3] — **완료**
 - **Fulfills**: R6

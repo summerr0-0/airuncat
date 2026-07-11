@@ -651,7 +651,10 @@ private struct SessionRow: View {
     private var expandedDetail: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .center, spacing: 14) {
-                if let tokens = session.contextTokens {
+                // R4: statusline 캐시의 네이티브 %가 있으면 우선(창 크기까지 정확), 없으면 합산 폴백.
+                if let native = StatuslineManager.nativeContext(sessionId: session.sessionId) {
+                    nativeContextGauge(native)
+                } else if let tokens = session.contextTokens {
                     contextGauge(tokens)
                 }
                 if let dur = session.durationSeconds {
@@ -690,6 +693,29 @@ private struct SessionRow: View {
             .frame(width: 80, height: 4)
         }
         .help("API 요청 payload 근사치 — 32MB 한계에 가까워지면 /compact 권장")
+    }
+
+    /// 네이티브 컨텍스트 게이지 (R4): Claude Code가 계산한 %와 실제 창 크기(200k/1M) 표시.
+    private func nativeContextGauge(_ native: StatuslineManager.NativeContext) -> some View {
+        let ratio = Double(native.usedPercentage) / 100
+        let sizeLabel = native.windowSize >= 1_000_000
+            ? "\(native.windowSize / 1_000_000)M" : "\(native.windowSize / 1000)k"
+        return VStack(alignment: .leading, spacing: 2) {
+            Text("ctx \(native.usedPercentage)% · \(sizeLabel) 창")
+                .font(.system(size: 9, design: .monospaced))
+                .foregroundColor(.secondary)
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.secondary.opacity(0.15))
+                    Capsule()
+                        .fill(AiruncatDesign.aiColor(.claude).opacity(0.75))
+                        .frame(width: max(2, geo.size.width * ratio))
+                }
+            }
+            .frame(height: 4)
+        }
+        .frame(width: 128)
+        .help("Claude Code 네이티브 값 (statusline)")
     }
 
     /// 컨텍스트 창 채움 게이지: "82k / 200k (41%)" + 채움 바(200k 분모, 100% clamp).

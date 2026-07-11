@@ -17,6 +17,21 @@ struct AiruncatApp: App {
             print("wrote \(out)")
             exit(0)
         }
+        // Debug path: `airuncat --statusline status|install|remove` (R3 검증용 CLI)
+        if let idx = args.firstIndex(of: "--statusline") {
+            let sub = (idx + 1 < args.count) ? args[idx + 1] : "status"
+            switch sub {
+            case "install": print(StatuslineManager.install() ?? "install ok")
+            case "remove":  print(StatuslineManager.remove() ?? "remove ok")
+            default:
+                switch StatuslineManager.status() {
+                case .installed:        print("installed (airuncat)")
+                case .foreign(let c):   print("foreign: \(c)")
+                case .notInstalled:     print("not installed")
+                }
+            }
+            exit(0)
+        }
         // Debug path: `airuncat --hook-recipe list|install <id>|remove <id>` (R5 검증용 CLI)
         if let idx = args.firstIndex(of: "--hook-recipe") {
             let sub = (idx + 1 < args.count) ? args[idx + 1] : "list"

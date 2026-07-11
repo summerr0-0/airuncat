@@ -2,14 +2,21 @@ import SwiftUI
 
 // MARK: - Skills View
 
+private struct SkillSection: Identifiable {
+    let id: String
+    let title: String
+    let items: [SkillRecord]
+}
+
 struct SkillsView: View {
-    var projectCwd: String? = nil
+    var projectCwds: [String] = []
     @State private var skills: [SkillRecord] = []
     @State private var orphans: [OrphanLink] = []
     @State private var searchText = ""
+    @State private var collapsed: Set<String> = []   // 접힌 섹션 id
     @State private var isLoading = true
     @State private var repairErrors: [String] = []
-    @State private var obsidianMissing = false
+    @State private var skillsDirMissing = false
 
     // Create form state
     @State private var showCreateForm = false
@@ -23,8 +30,8 @@ struct SkillsView: View {
         VStack(alignment: .leading, spacing: 0) {
             searchBar
             Divider()
-            if obsidianMissing {
-                missingObsidianNote
+            if skillsDirMissing {
+                missingSkillsDirNote
             } else if isLoading {
                 loadingRow
             } else if skills.isEmpty {
@@ -32,13 +39,18 @@ struct SkillsView: View {
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
-                        ForEach(filteredSkills) { skill in
-                            SkillRow(
-                                skill: skill,
-                                onToggle: { toggle($0, for: $1) },
-                                onDelete: { deleteSkill(skill) }
-                            )
-                            Divider().opacity(0.4)
+                        ForEach(skillSections) { section in
+                            sectionHeader(section)
+                            if !collapsed.contains(section.id) {
+                                ForEach(section.items) { skill in
+                                    SkillRow(
+                                        skill: skill,
+                                        onToggle: { toggle($0, for: $1) },
+                                        onDelete: { deleteSkill(skill) }
+                                    )
+                                    Divider().opacity(0.4)
+                                }
+                            }
                         }
                         if !orphans.isEmpty {
                             orphanSection
@@ -57,7 +69,7 @@ struct SkillsView: View {
             Divider()
             bottomBar
         }
-        .task { await reload() }
+        .task(id: projectCwds) { await reload() }
     }
 
     // MARK: - Subviews
@@ -91,7 +103,7 @@ struct SkillsView: View {
             .padding(.vertical, 16)
     }
 
-    private var missingObsidianNote: some View {
+    private var missingSkillsDirNote: some View {
         VStack(spacing: 4) {
             Text("Skills directory not found")
                 .font(.system(size: 12, weight: .medium))
@@ -247,16 +259,71 @@ struct SkillsView: View {
         return skills.filter { $0.id.contains(q) || $0.description.lowercased().contains(q) }
     }
 
+    /// 스코프별 섹션. global → project → native(출처 프로젝트별 폴더)로 분리.
+    private var skillSections: [SkillSection] {
+        let items = filteredSkills
+        var out: [SkillSection] = []
+        let global = items.filter { $0.scope == .global }
+        if !global.isEmpty { out.append(SkillSection(id: "global", title: "airuncat 스킬", items: global)) }
+
+        // 프로젝트: 프로젝트 폴더별로 분리.
+        out.append(contentsOf: groupedSections(items.filter { $0.scope == .project },
+                                               idPrefix: "project", titlePrefix: "프로젝트", fallback: "프로젝트"))
+        // 네이티브: 출처 프로젝트별로 분리.
+        out.append(contentsOf: groupedSections(items.filter { $0.scope == .native },
+                                               idPrefix: "native", titlePrefix: "네이티브", fallback: "로컬"))
+        return out
+    }
+
+    /// scope가 같은 레코드들을 group(프로젝트/출처)별 섹션으로 나눈다(등장 순서 유지).
+    private func groupedSections(_ items: [SkillRecord], idPrefix: String,
+                                 titlePrefix: String, fallback: String) -> [SkillSection] {
+        var seen = Set<String>(), groups: [String] = []
+        for s in items { let g = s.group ?? fallback; if seen.insert(g).inserted { groups.append(g) } }
+        return groups.map { g in
+            SkillSection(id: "\(idPrefix)-\(g)", title: "\(titlePrefix) · \(g)",
+                         items: items.filter { ($0.group ?? fallback) == g })
+        }
+    }
+
+    private func sectionHeader(_ section: SkillSection) -> some View {
+        let isCollapsed = collapsed.contains(section.id)
+        return Button {
+            withAnimation(.easeInOut(duration: 0.12)) {
+                if isCollapsed { collapsed.remove(section.id) } else { collapsed.insert(section.id) }
+            }
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
+                    .font(.system(size: 8, weight: .semibold))
+                    .foregroundColor(.secondary)
+                    .frame(width: 9)
+                Text(section.title)
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundColor(.secondary)
+                Text("\(section.items.count)")
+                    .font(.system(size: 9))
+                    .foregroundColor(Color.secondary.opacity(0.6))
+                Spacer()
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 8)
+            .padding(.bottom, 3)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
     // MARK: - Actions
 
     @MainActor
     private func reload() async {
         isLoading = true
-        let cwd = projectCwd
+        let cwds = projectCwds
         let (s, o) = await Task.detached(priority: .userInitiated) {
-            SkillScanner.scan(projectCwd: cwd)
+            SkillScanner.scan(projectCwds: cwds)
         }.value
-        obsidianMissing = s.isEmpty && !FileManager.default.fileExists(atPath: SkillManager.skillsDir)
+        skillsDirMissing = s.isEmpty && !FileManager.default.fileExists(atPath: SkillManager.skillsDir)
         skills = s
         orphans = o
         repairErrors = []
@@ -393,6 +460,24 @@ private struct SkillRow: View {
     @State private var hovering = false
     @State private var confirmingDelete = false
 
+    private var scopeBadge: String {
+        switch skill.scope { case .project: return "P"; case .native: return "N"; case .global: return "G" }
+    }
+    private var scopeBadgeColor: Color {
+        switch skill.scope {
+        case .project: return .orange
+        case .native:  return AiruncatDesign.aiColor(.claude)   // 네이티브 = Claude
+        case .global:  return .secondary
+        }
+    }
+    private var scopeHelp: String {
+        switch skill.scope {
+        case .project: return "프로젝트 로컬 (.claude/commands/)"
+        case .native:  return "Claude 네이티브 스킬 (~/.claude/skills/) — 자동 활성, 링크 관리 없음"
+        case .global:  return "글로벌 (~/.airuncat/skills/)"
+        }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 9) {
@@ -418,10 +503,10 @@ private struct SkillRow: View {
 
                 HStack(spacing: 5) {
                     // Scope badge
-                    Text(skill.scope == .project ? "P" : "G")
+                    Text(scopeBadge)
                         .font(.system(size: 9, weight: .semibold))
-                        .foregroundColor(skill.scope == .project ? .orange : .secondary)
-                        .help(skill.scope == .project ? "프로젝트 로컬 (.claude/commands/)" : "글로벌 (~/.airuncat/skills/)")
+                        .foregroundColor(scopeBadgeColor)
+                        .help(scopeHelp)
 
                     if skill.scope == .global {
                         LinkBadge("C", state: skill.claudeState) { onToggle(skill, .claude) }
@@ -496,19 +581,25 @@ private struct LinkBadge: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 2) {
+                // 글자색 = AI 정체성(Claude 보라/Gemini 청록), 글리프·배경 = 링크 상태
                 Text(label)
                     .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .foregroundColor(aiColor)
                 Text(stateGlyph)
                     .font(.system(size: 9, weight: .semibold))
+                    .foregroundColor(badgeForeground)
             }
             .padding(.horizontal, 5)
             .padding(.vertical, 3)
             .background(badgeBackground)
             .clipShape(RoundedRectangle(cornerRadius: 4))
-            .foregroundColor(badgeForeground)
         }
         .buttonStyle(.plain)
         .help(helpText)
+    }
+
+    private var aiColor: Color {
+        AiruncatDesign.aiColor(label == "C" ? .claude : .gemini)
     }
 
     private var stateGlyph: String {
@@ -556,9 +647,9 @@ private struct OrphanRow: View {
             Text(orphan.kind == .claude ? "C" : "G")
                 .font(.system(size: 8, weight: .bold, design: .monospaced))
                 .padding(.horizontal, 3).padding(.vertical, 2)
-                .background(Color.orange.opacity(0.15))
+                .background(Color.orange.opacity(0.15))   // 고아 링크 경고 맥락
                 .clipShape(RoundedRectangle(cornerRadius: 3))
-                .foregroundColor(.orange)
+                .foregroundColor(AiruncatDesign.aiColor(orphan.kind == .claude ? .claude : .gemini))
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(orphan.id)
@@ -599,14 +690,18 @@ private struct FormLinkToggle: View {
         self._isOn = isOn
     }
 
+    private var aiColor: Color {
+        AiruncatDesign.aiColor(label == "C" ? .claude : .gemini)
+    }
+
     var body: some View {
         Button { isOn.toggle() } label: {
             Text(label)
                 .font(.system(size: 10, weight: .bold, design: .monospaced))
                 .padding(.horizontal, 6)
                 .padding(.vertical, 3)
-                .background(isOn ? Color.accentColor.opacity(0.18) : Color.primary.opacity(0.07))
-                .foregroundColor(isOn ? .accentColor : .secondary)
+                .background(isOn ? aiColor.opacity(0.18) : Color.primary.opacity(0.07))
+                .foregroundColor(isOn ? aiColor : .secondary)
                 .clipShape(RoundedRectangle(cornerRadius: 4))
         }
         .buttonStyle(.plain)

@@ -17,12 +17,50 @@ struct AiruncatApp: App {
             print("wrote \(out)")
             exit(0)
         }
+        // Debug path: `airuncat --statusline status|install|remove` (R3 검증용 CLI)
+        if let idx = args.firstIndex(of: "--statusline") {
+            let sub = (idx + 1 < args.count) ? args[idx + 1] : "status"
+            switch sub {
+            case "install": print(StatuslineManager.install() ?? "install ok")
+            case "remove":  print(StatuslineManager.remove() ?? "remove ok")
+            default:
+                switch StatuslineManager.status() {
+                case .installed:        print("installed (airuncat)")
+                case .foreign(let c):   print("foreign: \(c)")
+                case .notInstalled:     print("not installed")
+                }
+            }
+            exit(0)
+        }
+        // Debug path: `airuncat --hook-recipe list|install <id>|remove <id>` (R5 검증용 CLI)
+        if let idx = args.firstIndex(of: "--hook-recipe") {
+            let sub = (idx + 1 < args.count) ? args[idx + 1] : "list"
+            let id  = (idx + 2 < args.count) ? args[idx + 2] : nil
+            switch sub {
+            case "install", "remove":
+                guard let id, let recipe = HookRecipeManager.recipes.first(where: { $0.id == id }) else {
+                    print("unknown recipe id"); exit(1)
+                }
+                let err = sub == "install" ? HookRecipeManager.install(recipe)
+                                           : HookRecipeManager.uninstall(recipe)
+                print(err ?? "\(sub) ok: \(recipe.id)")
+                exit(err == nil ? 0 : 1)
+            default:
+                for r in HookRecipeManager.recipes {
+                    print("\(HookRecipeManager.isInstalled(r) ? "[on] " : "[off]") \(r.id) — \(r.name) (\(r.event))")
+                }
+                exit(0)
+            }
+        }
+        // Obsidian → ~/.airuncat 일회성 마이그레이션. 스캐너(읽기)에서 분리해 시작 시 1회만 수행.
+        SkillManager.migrateFromObsidianIfNeeded()
+        PromptManager.migrateFromObsidianIfNeeded()
         NotificationManager.shared.requestPermission()
     }
 
     var body: some Scene {
         MenuBarExtra {
-            MenuContentView(store: store, tagStore: store.tagStore)
+            MenuContentView(store: store, tagStore: store.tagStore, usageStore: store.usageStore)
                 .onAppear {
                     let s = store
                     appCtrl.registerShortcut {

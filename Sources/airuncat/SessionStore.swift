@@ -9,6 +9,7 @@ final class SessionStore: ObservableObject {
     @Published var recentlyClosed: [(info: SessionInfo, closedAt: Date)] = []
 
     let tagStore = TagStore()
+    let usageStore = UsageStore()
 
     private var cache: [String: (mtime: Date, info: SessionInfo)] = [:]
     private var geminiCache: [String: (mtime: Date, info: SessionInfo)] = [:]
@@ -130,6 +131,8 @@ final class SessionStore: ObservableObject {
                 let visible = self.visibleSessions   // compute once per scan
                 self.detectIdleTransitions(visible: visible)
                 self.detectClosedSessions(visible: visible)
+                // 사용량 갱신: 공식 API(60s TTL). 세션 스캔과 같은 tick에 태움.
+                Task { await self.usageStore.refresh() }
             }
         }
     }

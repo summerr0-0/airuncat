@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "file=$(echo '$TOOL_INPUT' | jq -r '.file_path // empty'); if [[ \"$file\" == *.swift ]]; then cd /Users/jeong-ilin/study/clawde && swift build 2>&1 | tail -20; fi"
+            "command": "INPUT=$(cat); file=$(printf '%s' \"$INPUT\" | /usr/bin/python3 -c 'import json,sys; print((json.load(sys.stdin).get(\"tool_input\") or {}).get(\"file_path\") or \"\")' 2>/dev/null); if [[ \"$file\" == *.swift ]]; then cd /Users/jeong-ilin/study/clawde && swift build 2>&1 | tail -20; fi"
           }
         ]
       }
@@ -17,11 +17,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "file=$(echo '$TOOL_INPUT' | jq -r '.file_path // empty'); if [[ \"$file\" == *\"/.build/\"* || \"$file\" == *\"/Clawde.app/\"* ]]; then echo 'BLOCKED: build artifact. Edit Sources/ instead.'; exit 1; fi"
+            "command": "INPUT=$(cat); file=$(printf '%s' \"$INPUT\" | /usr/bin/python3 -c 'import json,sys; print((json.load(sys.stdin).get(\"tool_input\") or {}).get(\"file_path\") or \"\")' 2>/dev/null); case \"$file\" in */.build/*|*/airuncat.app/*) printf '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"빌드 산출물 — Sources/를 수정하세요: %s\"}}' \"$file\";; esac"
           },
           {
             "type": "command",
-            "command": "file=$(echo '$TOOL_INPUT' | jq -r '.file_path // empty'); if [[ \"$file\" == *\"/.claude/projects/\"*.jsonl ]]; then echo 'BLOCKED: session logs are read-only.'; exit 1; fi"
+            "command": "INPUT=$(cat); file=$(printf '%s' \"$INPUT\" | /usr/bin/python3 -c 'import json,sys; print((json.load(sys.stdin).get(\"tool_input\") or {}).get(\"file_path\") or \"\")' 2>/dev/null); case \"$file\" in */.claude/projects/*.jsonl) printf '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"세션 로그는 읽기 전용: %s\"}}' \"$file\";; esac"
           }
         ]
       }

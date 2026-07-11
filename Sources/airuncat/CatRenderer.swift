@@ -63,31 +63,35 @@ struct CatRenderer {
 
     private static func drawRunning(phase: Double) {
         let ground = 3.0
+        // Body bounces as it gallops; feet stay grounded so legs stretch/compress naturally.
+        let bob = sin(phase * 2) * 0.7
 
         // Body
-        oval(NSRect(x: 4, y: 6, width: 13, height: 8))
+        oval(NSRect(x: 4, y: 6 + bob, width: 13, height: 8))
         // Head
-        oval(NSRect(x: 14.5, y: 7.5, width: 9, height: 9))
-        // Ears
-        triangle((16.2, 15.0), (17.4, 18.6), (18.8, 15.0))
-        triangle((19.0, 15.0), (20.6, 18.6), (21.8, 15.0))
+        oval(NSRect(x: 14.5, y: 7.5 + bob, width: 9, height: 9))
+        // Muzzle — a small bump at the face front gives a hint of a snout.
+        oval(NSRect(x: 21.2, y: 8.4 + bob, width: 3.2, height: 3.6))
+        // Ears — taller & pointier triangles read as "cat" even at menu-bar size.
+        triangle((15.8, 15.0 + bob), (16.7, 19.6 + bob), (18.7, 15.4 + bob))
+        triangle((19.0, 15.4 + bob), (21.0, 19.6 + bob), (21.9, 15.0 + bob))
 
-        // Tail: a thick curved stroke off the back, flicking with phase
-        let wag = sin(phase * 0.9) * 2.0
+        // Tail: a thick curved stroke sweeping UP into a curl — an alert, cute silhouette.
+        let wag = sin(phase * 0.9) * 1.8
         let tail = NSBezierPath()
         tail.lineWidth = 2.6
         tail.lineCapStyle = .round
         tail.lineJoinStyle = .round
-        tail.move(to: p(4.5, 9))
-        tail.curve(to: p(0.8, 13 + wag),
-                   controlPoint1: p(1.5, 8),
-                   controlPoint2: p(0.5, 10.5))
+        tail.move(to: p(4.8, 8.5 + bob))
+        tail.curve(to: p(2.4, 15.5 + wag + bob),
+                   controlPoint1: p(0.8, 9.0 + bob),
+                   controlPoint2: p(0.2, 14.0 + bob))
         tail.stroke()
 
         // Four legs: feet oscillate around their hips -> galloping.
         let hips: [Double] = [6.0, 8.5, 12.5, 15.0]
         let offs:  [Double] = [0.0, .pi, .pi, 0.0]   // diagonal trot
-        let amp = 3.0, lift = 3.2, hipY = 7.0
+        let amp = 3.2, lift = 3.4, hipY = 7.0 + bob
         for i in 0..<4 {
             let ph = phase + offs[i]
             let fx = hips[i] + cos(ph) * amp
@@ -101,7 +105,7 @@ struct CatRenderer {
         }
 
         // Eye (punched hole)
-        punch(NSRect(x: 19.4, y: 10.6, width: 1.9, height: 1.9))
+        punch(NSRect(x: 19.4, y: 10.6 + bob, width: 1.9, height: 1.9))
     }
 
     // MARK: - Sleeping pose
@@ -112,9 +116,9 @@ struct CatRenderer {
         oval(NSRect(x: 4, y: 4, width: 15, height: 7))
         // Head resting to the right
         oval(NSRect(x: 14.5, y: 4.5, width: 8.5, height: 8.5))
-        // Ears (slightly drooped)
-        triangle((15.8, 12.0), (16.8, 15.0), (18.2, 12.2))
-        triangle((18.6, 12.2), (20.0, 15.0), (21.2, 12.0))
+        // Ears (pointier, gently relaxed to match the running pose)
+        triangle((15.6, 12.2), (16.5, 15.9), (18.3, 12.4))
+        triangle((18.6, 12.4), (20.4, 15.9), (21.3, 12.2))
 
         // Tail curled around the body, gently waving (slow)
         let wag = sin(phase * 0.5) * 1.2

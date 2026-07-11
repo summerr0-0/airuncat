@@ -11,17 +11,20 @@ struct HarnessPopoverView: View {
     @State private var permKind: PermissionKind = .allow
     @State private var permCreateError: String? = nil
     @State private var errors: [(id: UUID, message: String)] = []
+    @State private var scoreExpanded = false
+    @State private var settingUp = false
+    @State private var recipesExpanded = false   // Phase 15 레시피 피커
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if !errors.isEmpty { errorBanner }
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
+                    scoreSection
+                    Divider().padding(.vertical, 4)
                     rulesSection
-                    if !info.hooks.isEmpty {
-                        Divider().padding(.vertical, 4)
-                        hooksSection
-                    }
+                    Divider().padding(.vertical, 4)
+                    hooksSection   // 레시피 진입점 포함 — hooks 0개여도 표시(Phase 15)
                     Divider().padding(.vertical, 4)
                     permissionsSection
                     if showPermCreateForm {
@@ -40,6 +43,112 @@ struct HarnessPopoverView: View {
             }
         }
         .frame(width: 280)
+    }
+
+    // MARK: - Score
+
+    private var scoreSection: some View {
+        let score = info.score
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 6) {
+                Text("Harness")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundColor(.secondary)
+                gradeBadge(score.grade)
+                Text("\(score.percent)%")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(.secondary)
+                Spacer()
+                Text("5축")
+                    .font(.system(size: 9))
+                    .foregroundColor(.secondary)
+                Image(systemName: scoreExpanded ? "chevron.down" : "chevron.right")
+                    .font(.system(size: 8))
+                    .foregroundColor(.secondary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                withAnimation(.easeInOut(duration: 0.15)) { scoreExpanded.toggle() }
+            }
+
+            if scoreExpanded {
+                ForEach(score.axes) { axis in
+                    axisRow(axis)
+                }
+            }
+        }
+    }
+
+    private func gradeBadge(_ grade: HarnessGrade) -> some View {
+        Text(grade.rawValue)
+            .font(.system(size: 10, weight: .bold))
+            .foregroundColor(grade.badgeTextColor)
+            .frame(width: 16, height: 16)
+            .background(RoundedRectangle(cornerRadius: 4).fill(grade.color))
+    }
+
+    private func axisRow(_ axis: AxisResult) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            HStack(spacing: 5) {
+                Text(axis.title)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(.primary.opacity(0.85))
+                    .frame(width: 30, alignment: .leading)
+                if axis.showsMaturity {
+                    Text(axis.maturity)
+                        .font(.system(size: 8, weight: .semibold))
+                        .foregroundColor(.secondary)
+                        .frame(width: 16, alignment: .leading)
+                }
+                HStack(spacing: 2) {
+                    ForEach(axis.items.indices, id: \.self) { i in
+                        Circle()
+                            .fill(i < axis.pass ? Color.green.opacity(0.8) : Color.secondary.opacity(0.25))
+                            .frame(width: 5, height: 5)
+                    }
+                }
+                Spacer()
+                if axis.deferredCount > 0 {
+                    Text("· 심층 \(axis.deferredCount)항목")
+                        .font(.system(size: 8))
+                        .foregroundColor(.secondary.opacity(0.6))
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 3)
+
+            ForEach(axis.items) { item in
+                HStack(spacing: 5) {
+                    Image(systemName: item.passed ? "checkmark.circle.fill" : "xmark.circle")
+                        .font(.system(size: 9))
+                        .foregroundColor(item.passed ? .green : .secondary.opacity(0.5))
+                    Text(item.label)
+                        .font(.system(size: 10))
+                        .foregroundColor(item.passed ? .primary.opacity(0.8) : .secondary)
+                        .lineLimit(1)
+                    if let detail = item.detail {
+                        Text(detail)
+                            .font(.system(size: 9))
+                            .foregroundColor(.secondary.opacity(0.6))
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                    Spacer(minLength: 4)
+                    if !item.passed, let action = item.action {
+                        Button(action.label) { runSetup(action) }
+                            .buttonStyle(.plain)
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundColor(settingUp ? .secondary.opacity(0.5) : .accentColor)
+                            .disabled(settingUp)
+                    }
+                }
+                .padding(.leading, 20)
+                .padding(.trailing, 12)
+                .padding(.vertical, 1)
+            }
+        }
     }
 
     // MARK: - Sections
@@ -106,7 +215,21 @@ struct HarnessPopoverView: View {
 
     private var hooksSection: some View {
         VStack(alignment: .leading, spacing: 0) {
-            sectionHeader("hooks", count: info.hooks.count, subtitle: "\(info.enabledHookCount) 활성")
+            HStack(spacing: 4) {
+                sectionHeader("hooks", count: info.hooks.count, subtitle: "\(info.enabledHookCount) 활성")
+                Spacer()
+                // Phase 15: 레시피 피커 진입점
+                Button {
+                    withAnimation(.easeInOut(duration: 0.12)) { recipesExpanded.toggle() }
+                } label: {
+                    Text(recipesExpanded ? "닫기" : "+ 레시피")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundColor(recipesExpanded ? .secondary : .accentColor)
+                }
+                .buttonStyle(.plain)
+                .padding(.trailing, 12)
+                .help("큐레이팅 레시피에서 훅 추가 (비활성으로 추가 → 검토 후 토글)")
+            }
             ForEach(info.hooks) { hook in
                 HookRow(
                     hook: hook,
@@ -118,6 +241,89 @@ struct HarnessPopoverView: View {
                     }
                 )
             }
+            if recipesExpanded { recipePicker }
+        }
+    }
+
+    // MARK: - Recipe picker (Phase 15)
+
+    private var recipePicker: some View {
+        let types = ProjectTypeDetector.detect(cwd: info.projectPath)
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 4) {
+                Text("감지:")
+                    .font(.system(size: 9))
+                    .foregroundColor(.secondary)
+                ForEach(types, id: \.self) { t in
+                    Text(t.label)
+                        .font(.system(size: 8, weight: .semibold))
+                        .padding(.horizontal, 5).padding(.vertical, 2)
+                        .background(Color.accentColor.opacity(0.12))
+                        .clipShape(Capsule())
+                        .foregroundColor(.accentColor)
+                }
+                Spacer()
+            }
+            .padding(.top, 4)
+
+            ForEach(ProjectHookRecipe.catalog) { recipe in
+                recipeRow(recipe, types: types)
+            }
+            Text("추가된 레시피는 비활성 상태 — 명령 검토 후 토글로 켜세요.")
+                .font(.system(size: 8))
+                .foregroundColor(.secondary.opacity(0.7))
+                .padding(.bottom, 2)
+        }
+        .padding(.horizontal, 12)
+    }
+
+    private func recipeRow(_ recipe: ProjectHookRecipe, types: [ProjectType]) -> some View {
+        let command = recipe.command(for: types)
+        return HStack(alignment: .top, spacing: 6) {
+            VStack(alignment: .leading, spacing: 1) {
+                HStack(spacing: 4) {
+                    Text(recipe.title)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(command == nil ? .secondary : .primary)
+                    Text(recipe.category.rawValue)
+                        .font(.system(size: 8))
+                        .padding(.horizontal, 4).padding(.vertical, 1)
+                        .background(Color.primary.opacity(0.07))
+                        .clipShape(Capsule())
+                        .foregroundColor(.secondary)
+                }
+                Text(command.map { String($0.prefix(90)) } ?? "이 프로젝트 타입엔 해당 없음")
+                    .font(.system(size: 8, design: .monospaced))
+                    .foregroundColor(.secondary.opacity(command == nil ? 0.6 : 0.9))
+                    .lineLimit(2)
+                    .help(command ?? recipe.description)
+            }
+            Spacer(minLength: 4)
+            Button("추가") {
+                addRecipe(recipe, command: command)
+            }
+            .buttonStyle(.plain)
+            .font(.system(size: 9, weight: .semibold))
+            .foregroundColor(command == nil ? .secondary.opacity(0.4) : .accentColor)
+            .disabled(command == nil)
+        }
+        .padding(.vertical, 3)
+    }
+
+    private func addRecipe(_ recipe: ProjectHookRecipe, command: String?) {
+        guard let command else { return }
+        let result = HarnessManager.addDisabledHookTemplate(
+            event: recipe.event, matcher: recipe.matcher, command: command, in: info)
+        if let err = result.writeError {
+            if err != HarnessManager.alreadyExistsMarker {
+                errors.append((id: UUID(), message: err))
+            }
+            // "이미 존재"는 무해 — 조용히 무시(스펙 엣지케이스)
+            var cleared = result
+            cleared.writeError = nil
+            info = cleared
+        } else {
+            info = result
         }
     }
 
@@ -347,6 +553,28 @@ struct HarnessPopoverView: View {
                 HarnessScanner.scan(cwd: cwd)
             }.value
             if let updated { info = updated }
+        }
+    }
+
+    // MARK: - Phase 14: Harness 자동 세팅
+
+    private func runSetup(_ action: HarnessSetupAction) {
+        guard !settingUp else { return }
+        settingUp = true
+        let cwd = info.projectPath
+        let snapshot = info
+        Task {
+            let err: String? = await Task.detached(priority: .userInitiated) {
+                switch action {
+                case .createClaudeMd:   return HarnessSetup.createClaudeMd(cwd: cwd)
+                case .createRule:       return HarnessSetup.createStarterRule(cwd: cwd)
+                case .addDenies:        return HarnessSetup.addSensitiveDenies(in: snapshot).writeError
+                case .addHookTemplates: return HarnessSetup.addHookTemplates(in: snapshot).writeError
+                }
+            }.value
+            settingUp = false
+            if let err { errors.append((id: UUID(), message: err)) }
+            rescan()   // 디스크 실제 상태로 점수 갱신
         }
     }
 

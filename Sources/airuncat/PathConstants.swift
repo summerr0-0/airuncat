@@ -12,7 +12,10 @@ enum PathConstants {
     static var claudeProjects:      String { p(".claude/projects") }
     static var claudeCommands:      String { p(".claude/commands") }
     static var claudeRules:         String { p(".claude/rules") }
+    static var claudeSkills:        String { p(".claude/skills") }
     static var claudeSettings:      String { p(".claude/settings.json") }
+    static var claudeHooks:         String { p(".claude/hooks") }
+    static var hookState:           String { p(".airuncat/hook-state") }
     static var claudeSettingsLocal: String { p(".claude/settings.local.json") }
     static var globalClaudeMd:      String { p(".claude/CLAUDE.md") }
     static var mcpJson:             String { p(".mcp.json") }
@@ -30,4 +33,6 @@ enum PathConstants {
     static var statsCache:          String { p(".airuncat/stats-cache.json") }
     static var paletteHistory:      String { p(".airuncat/palette-history.json") }
     static var customNames:         String { p(".airuncat/custom-names.json") }
+    static var tags:                String { p(".airuncat/tags.json") }
+    static var tagPool:             String { p(".airuncat/tag-pool.json") }
 }

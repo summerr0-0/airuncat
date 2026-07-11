@@ -1,6 +1,18 @@
 import Foundation
 
 enum HarnessManager {
+    /// "이미 존재"를 정상 스킵으로 식별하는 마커 (HarnessSetup.applyAll에서 매칭).
+    static let alreadyExistsMarker = "이미 존재"
+
+    /// settings.json을 dict로 로드. 부재면 빈 {} (정상), 있으나 파싱 실패면 nil(덮어쓰기 금지).
+    private static func loadSettingsJSON(_ path: String) -> [String: Any]? {
+        guard FileManager.default.fileExists(atPath: path) else { return [:] }
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+              let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return nil }
+        return parsed
+    }
+
     // MARK: - Toggle
 
     /// Toggle a hook's enabled state in settings.json.
@@ -51,11 +63,9 @@ enum HarnessManager {
 
     static func addPermission(pattern: String, kind: PermissionKind, in info: HarnessInfo) -> HarnessInfo {
         var updated = info
-        guard
-            let data = try? Data(contentsOf: URL(fileURLWithPath: info.settingsPath)),
-            var json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        else {
-            updated.writeError = "settings.json 읽기 실패"
+        // 부재면 빈 {} 시작(deny 0 프로젝트의 흔한 케이스), 있으나 파싱 실패면 덮어쓰기 금지
+        guard var json = loadSettingsJSON(info.settingsPath) else {
+            updated.writeError = "settings.json 형식 오류 — 수동 확인 필요"
             return updated
         }
         if let current = HarnessScanner.mtime(of: info.settingsPath),
@@ -67,7 +77,8 @@ enum HarnessManager {
         var perms = json["permissions"] as? [String: Any] ?? [:]
         var list = perms[kind.rawValue] as? [String] ?? []
         guard !list.contains(pattern) else {
-            updated.writeError = "이미 존재: \(pattern)"
+            updated.writeError = "\(alreadyExistsMarker): \(pattern)"
+            updated.settingsMtime = HarnessScanner.mtime(of: info.settingsPath) ?? info.settingsMtime
             return updated
         }
         list.append(pattern)
@@ -148,6 +159,43 @@ enum HarnessManager {
         }
 
         updated.hooks.removeAll { $0.id == hook.id }
+        updated.settingsMtime = HarnessScanner.mtime(of: info.settingsPath) ?? info.settingsMtime
+        updated.writeError = nil
+        return updated
+    }
+
+    // MARK: - Disabled hook template (Phase 14: 참고 hook 자동 생성)
+
+    /// `_disabledHooks[event]`에 참고 hook 그룹을 추가한다. 비활성이라 켤 때까지 실행 안 됨.
+    /// settings.json 부재 시 빈 {}에서 시작. 동일 (event,matcher,command)면 "이미 존재" 반환.
+    static func addDisabledHookTemplate(event: String, matcher: String,
+                                        command: String, in info: HarnessInfo) -> HarnessInfo {
+        var updated = info
+        guard var json = loadSettingsJSON(info.settingsPath) else {
+            updated.writeError = "settings.json 형식 오류 — 수동 확인 필요"
+            return updated
+        }
+        if let current = HarnessScanner.mtime(of: info.settingsPath),
+           abs(current.timeIntervalSince(info.settingsMtime)) > 1 {
+            updated.writeError = "외부에서 변경됨 — 재스캔 후 다시 시도"
+            return updated
+        }
+        let id = hookHash(event: event, matcher: matcher, command: command)
+        if updated.hooks.contains(where: { $0.id == id }) {
+            updated.writeError = alreadyExistsMarker
+            updated.settingsMtime = HarnessScanner.mtime(of: info.settingsPath) ?? info.settingsMtime
+            return updated
+        }
+        let group: [String: Any] = [
+            "matcher": matcher,
+            "hooks": [["type": "command", "command": command]]
+        ]
+        insertGroup(group, into: &json, key: "_disabledHooks", event: event)
+        if let err = writeJSON(json, to: info.settingsPath) {
+            updated.writeError = err
+            return updated
+        }
+        updated.hooks = HarnessScanner.scanHooks(settingsPath: info.settingsPath)
         updated.settingsMtime = HarnessScanner.mtime(of: info.settingsPath) ?? info.settingsMtime
         updated.writeError = nil
         return updated

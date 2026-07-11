@@ -12,11 +12,11 @@ final class TagStore: ObservableObject {
     private var saveTask: Task<Void, Never>?
 
     init() {
-        let dir = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".airuncat")
-        tagsURL = dir.appendingPathComponent("tags.json")
-        poolURL = dir.appendingPathComponent("tag-pool.json")
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        tagsURL = URL(fileURLWithPath: PathConstants.tags)
+        poolURL = URL(fileURLWithPath: PathConstants.tagPool)
+        try? FileManager.default.createDirectory(
+            at: URL(fileURLWithPath: PathConstants.airuncatBase),
+            withIntermediateDirectories: true)
         load()
     }
 

@@ -17,6 +17,7 @@ private enum FilterMode: Equatable {
 struct MenuContentView: View {
     @ObservedObject var store: SessionStore
     @ObservedObject var tagStore: TagStore
+    @ObservedObject var usageStore: UsageStore
     @StateObject private var statsStore = StatsStore()
     @State private var activeTab: Tab = .sessions
     @State private var filter: FilterMode = .all
@@ -30,7 +31,7 @@ struct MenuContentView: View {
             if activeTab == .sessions {
                 sessionsContent
             } else if activeTab == .skills {
-                SkillsView(projectCwd: activeSessionCwd)
+                SkillsView(projectCwds: allClaudeCwds)
             } else if activeTab == .prompts {
                 PromptLibraryView(store: store)
             } else if activeTab == .mcp {
@@ -52,16 +53,20 @@ struct MenuContentView: View {
     // MARK: - Subviews
 
     private var tabBar: some View {
-        HStack(spacing: 0) {
-            TabButton("Sessions", active: activeTab == .sessions) { activeTab = .sessions }
-            TabButton("Skills", active: activeTab == .skills) { activeTab = .skills }
-            TabButton("Prompts", active: activeTab == .prompts) { activeTab = .prompts }
-            TabButton("MCP", active: activeTab == .mcp) { activeTab = .mcp }
-            TabButton("Stats", active: activeTab == .stats) { activeTab = .stats }
+        HStack(spacing: 2) {
+            TabButton("Sessions", icon: "rectangle.stack", active: activeTab == .sessions) { switchTab(.sessions) }
+            TabButton("Skills", icon: "wand.and.stars", active: activeTab == .skills) { switchTab(.skills) }
+            TabButton("Prompts", icon: "text.bubble", active: activeTab == .prompts) { switchTab(.prompts) }
+            TabButton("MCP", icon: "puzzlepiece", active: activeTab == .mcp) { switchTab(.mcp) }
+            TabButton("Stats", icon: "chart.bar", active: activeTab == .stats) { switchTab(.stats) }
             Spacer()
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
+    }
+
+    private func switchTab(_ tab: Tab) {
+        withAnimation(.easeInOut(duration: 0.15)) { activeTab = tab }
     }
 
     @ViewBuilder
@@ -75,15 +80,17 @@ struct MenuContentView: View {
         } else {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    ForEach(filteredSessions) { session in
-                        SessionRow(
-                            session: session,
-                            tagStore: tagStore,
-                            onTap: { store.resume(session) },
-                            onRename: { name in store.setCustomName(sessionId: session.sessionId, name: name) }
-                        )
-                        Divider().opacity(0.4)
+                    let sorted = sortedSessions
+                    let waiting = sorted.filter { $0.displayStatus == .waiting }
+                    let others  = sorted.filter { $0.displayStatus != .waiting }
+                    ForEach(waiting) { sessionRow($0) }
+                    if !waiting.isEmpty && !others.isEmpty {
+                        Rectangle()
+                            .fill(Color.orange.opacity(0.22))
+                            .frame(height: 2)
+                            .padding(.vertical, 1)
                     }
+                    ForEach(others) { sessionRow($0) }
                     if !store.recentlyClosed.isEmpty {
                         recentlyClosedSection
                     }
@@ -93,17 +100,125 @@ struct MenuContentView: View {
         }
     }
 
+    @ViewBuilder
+    private func sessionRow(_ session: SessionInfo) -> some View {
+        SessionRow(
+            session: session,
+            tagStore: tagStore,
+            onTap: { store.resume(session) },
+            onRename: { name in store.setCustomName(sessionId: session.sessionId, name: name) }
+        )
+        Divider().opacity(0.4)
+    }
+
     private var header: some View {
-        HStack(spacing: 8) {
-            Text("airuncat")
-                .font(.system(size: 13, weight: .bold))
-            Spacer()
-            Text(summary)
-                .font(.system(size: 11))
-                .foregroundColor(.secondary)
+        VStack(spacing: 6) {
+            HStack(spacing: 8) {
+                Text("airuncat")
+                    .font(.system(size: 13, weight: .bold))
+                Spacer()
+                // 응답 대기(나를 기다리는) 세션을 헤더에서 가장 먼저 알린다.
+                if waitingCount > 0 {
+                    HStack(spacing: 3) {
+                        Image(systemName: "bell.fill")
+                            .font(.system(size: 8))
+                            .foregroundColor(AiruncatDesign.statusColor(.waiting))
+                        Text("\(waitingCount) 대기")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(AiruncatDesign.statusColor(.waiting))
+                    }
+                }
+                // C/G 카운트에 AI 정체성 색을 입혀 헤더도 같은 색 언어를 쓴다.
+                summaryText
+                    .font(.system(size: 11))
+            }
+            usageBar
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+    }
+
+    // MARK: - 사용량 (Anthropic 공식 API 실제 %)
+
+    @ViewBuilder
+    private var usageBar: some View {
+        if let snap = usageStore.snapshot {
+            HStack(spacing: 12) {
+                usageGauge(label: "5h", percent: snap.fiveHourPercent, resetsAt: snap.fiveHourResetsAt,
+                           stale: usageStore.isStale)
+                if let wk = snap.weeklyPercent {
+                    usageGauge(label: "wk", percent: wk, resetsAt: snap.weeklyResetsAt,
+                               stale: usageStore.isStale)
+                }
+            }
+        } else if let err = usageStore.error {
+            HStack(spacing: 5) {
+                Image(systemName: "exclamationmark.triangle").font(.system(size: 8))
+                Text("사용량 \(err.hint)").font(.system(size: 9))
+                Spacer(minLength: 0)
+            }
+            .foregroundColor(.secondary)
+            .help("Anthropic 사용량 API 호출 실패 — \(err.hint)")
+        } else {
+            Text("사용량 불러오는 중…")
+                .font(.system(size: 9)).foregroundColor(Color.secondary.opacity(0.6))
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    /// utilization %(서버 실제값) 게이지 + 리셋 카운트다운. stale=오류 중 직전 값 재사용(* 배지, R2).
+    private func usageGauge(label: String, percent: Double, resetsAt: Date?, stale: Bool = false) -> some View {
+        let pct = min(100, max(0, percent))
+        let reset = Self.resetCountdown(resetsAt)
+        return HStack(spacing: 5) {
+            Text(label)
+                .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                .foregroundColor(.secondary)
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.secondary.opacity(0.15))
+                    Capsule().fill(Self.gaugeColor(pct).opacity(stale ? 0.5 : 1))
+                        .frame(width: max(2, geo.size.width * pct / 100))
+                }
+            }
+            .frame(height: 5)
+            Text("\(Int(pct.rounded()))%\(stale ? "*" : "")")
+                .font(.system(size: 9, design: .monospaced))
+                .foregroundColor(stale ? .secondary : Self.gaugeColor(pct))
+                .fixedSize()
+            if let reset {
+                Text(reset)
+                    .font(.system(size: 8, design: .monospaced))
+                    .foregroundColor(Color.secondary.opacity(0.7))
+                    .fixedSize()
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .help("\(label): \(Int(pct.rounded()))% 사용"
+            + (reset.map { " · \($0) 후 리셋" } ?? "")
+            + (stale ? " · 일시 오류 — 직전 값 표시 중" : ""))
+    }
+
+    /// 사용률 색(OMC 임계 70/90). 낮을수록 여유(Claude 보라), 높을수록 경고.
+    private static func gaugeColor(_ pct: Double) -> Color {
+        if pct >= 90 { return .red }
+        if pct >= 70 { return .orange }
+        return AiruncatDesign.aiColor(.claude).opacity(0.75)
+    }
+
+    /// 리셋까지 남은 시간 "3h42m" / "2d5h". 지났으면 nil.
+    private static func resetCountdown(_ date: Date?) -> String? {
+        guard let date else { return nil }
+        let secs = Int(date.timeIntervalSinceNow)
+        guard secs > 0 else { return nil }
+        let m = secs / 60, h = m / 60, d = h / 24
+        if d > 0 { return "\(d)d\(h % 24)h" }
+        if h > 0 { return "\(h)h\(m % 60)m" }
+        return "\(m)m"
+    }
+
+    private var waitingCount: Int {
+        store.visibleSessions.filter { $0.displayStatus == .waiting }.count
     }
 
     private var filterBar: some View {
@@ -173,19 +288,33 @@ struct MenuContentView: View {
 
     // MARK: - Computed
 
-    private var summary: String {
+    /// 헤더 요약. C는 Claude 보라, G는 Gemini 청록으로 칠해 색 언어를 유지한다.
+    private var summaryText: Text {
         let c = store.claudeActiveCount
         let g = store.geminiActiveCount
         let a = c + g
         let i = store.idleCount
-        if a == 0 && i == 0 { return "all quiet" }
-        var parts: [String] = []
-        if c > 0 { parts.append("\(c)C") }
-        if g > 0 { parts.append("\(g)G") }
-        let activePart = parts.joined(separator: " ")
-        if a == 0 { return "\(i) idle" }
-        if i == 0 { return "\(activePart) active" }
-        return "\(activePart) active · \(i) idle"
+        let secondary = Color.secondary
+
+        func dim(_ s: String) -> Text { Text(s).foregroundColor(secondary) }
+
+        if a == 0 && i == 0 { return dim("all quiet") }
+        if a == 0 { return dim("\(i) idle") }
+
+        // 활성 파트: 색 입힌 C/G 스팬을 공백으로 잇는다.
+        var active = Text("")
+        var needSpace = false
+        if c > 0 {
+            active = Text("\(c)C").foregroundColor(AiruncatDesign.aiColor(.claude))
+            needSpace = true
+        }
+        if g > 0 {
+            if needSpace { active = active + dim(" ") }
+            active = active + Text("\(g)G").foregroundColor(AiruncatDesign.aiColor(.gemini))
+        }
+        active = active + dim(" active")
+        if i == 0 { return active }
+        return active + dim(" · \(i) idle")
     }
 
     private var usedTags: [String] {
@@ -199,10 +328,13 @@ struct MenuContentView: View {
         return result
     }
 
-    private var activeSessionCwd: String? {
-        let sessions = store.visibleSessions
-        return (sessions.first { $0.status == .active && $0.aiKind == .claude }
-             ?? sessions.first { $0.status == .idle && $0.aiKind == .claude })?.cwd
+    /// 보이는 Claude 세션들의 고유 cwd — 여러 프로젝트의 로컬 스킬을 모두 스캔하기 위함.
+    private var allClaudeCwds: [String] {
+        var seen = Set<String>(); var out: [String] = []
+        for s in store.visibleSessions where s.aiKind == .claude && !s.cwd.isEmpty {
+            if seen.insert(s.cwd).inserted { out.append(s.cwd) }
+        }
+        return out
     }
 
     private var filteredSessions: [SessionInfo] {
@@ -212,32 +344,52 @@ struct MenuContentView: View {
         case .tag(let t): return store.visibleSessions.filter { tagStore.tags(for: $0.sessionId).contains(t) }
         }
     }
+
+    /// 상태 우선 정렬: 응답 대기 > 작업 중 > idle > 휴식, 동률은 최근순.
+    private var sortedSessions: [SessionInfo] {
+        filteredSessions.sorted {
+            $0.displayStatus.rawValue != $1.displayStatus.rawValue
+                ? $0.displayStatus.rawValue < $1.displayStatus.rawValue
+                : $0.lastActivity > $1.lastActivity
+        }
+    }
 }
 
 // MARK: - Tab Button
 
 private struct TabButton: View {
     let label: String
+    let icon: String
     let active: Bool
     let action: () -> Void
 
-    init(_ label: String, active: Bool, action: @escaping () -> Void) {
+    init(_ label: String, icon: String, active: Bool, action: @escaping () -> Void) {
         self.label = label
+        self.icon = icon
         self.active = active
         self.action = action
     }
 
     var body: some View {
         Button(action: action) {
-            Text(label)
-                .font(.system(size: 11, weight: active ? .semibold : .regular))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(active ? Color.accentColor.opacity(0.15) : Color.clear)
-                .clipShape(RoundedRectangle(cornerRadius: 5))
-                .foregroundColor(active ? .accentColor : .secondary)
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.system(size: 11, weight: active ? .semibold : .regular))
+                // 활성 탭만 라벨을 펼쳐 320pt에 5탭이 깔끔히 들어가게.
+                if active {
+                    Text(label)
+                        .font(.system(size: 11, weight: .semibold))
+                        .fixedSize()
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(active ? Color.accentColor.opacity(0.15) : Color.clear)
+            .clipShape(Capsule())
+            .foregroundColor(active ? .accentColor : .secondary)
         }
         .buttonStyle(.plain)
+        .help(label)
     }
 }
 
@@ -297,11 +449,18 @@ private struct SessionRow: View {
     @State private var harness: HarnessInfo? = nil
     @State private var memoryCount: Int = 0
     @State private var claudeMdExists: Bool = false
+    @State private var expanded = false
+
+    /// 펼칠 상세(토큰/지속시간/payload)가 있을 때만 disclosure 노출.
+    private var hasDetail: Bool {
+        session.contextTokens != nil || session.durationSeconds != nil || session.activePayloadBytes != nil
+    }
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
         HStack(alignment: .top, spacing: 9) {
             Capsule()
-                .fill(statusBarColor)
+                .fill(AiruncatDesign.statusColor(session.displayStatus))
                 .frame(width: 3, height: 28)
                 .padding(.top, 3)
 
@@ -309,13 +468,26 @@ private struct SessionRow: View {
                 .font(.system(size: 8, weight: .bold, design: .monospaced))
                 .padding(.horizontal, 3)
                 .padding(.vertical, 2)
-                .background(Color.primary.opacity(0.08))
+                .background(AiruncatDesign.aiColor(session.aiKind).opacity(0.18))
                 .clipShape(RoundedRectangle(cornerRadius: 3))
-                .foregroundColor(.secondary)
+                .foregroundColor(AiruncatDesign.aiColor(session.aiKind))
                 .padding(.top, 5)
 
             VStack(alignment: .leading, spacing: 2) {
-                titleArea
+                HStack(spacing: 5) {
+                    Text(AiruncatDesign.statusLabel(session.displayStatus))
+                        .font(.system(size: 9, weight: session.displayStatus == .waiting ? .bold : .medium))
+                        .foregroundColor(AiruncatDesign.statusColor(session.displayStatus))
+                        .fixedSize()
+                    // R10: friction 배지 — 오류율↑/방치 갭이면 경고, 툴팁에 사유
+                    if let friction = session.frictionReason {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 8))
+                            .foregroundColor(.orange)
+                            .help(friction)
+                    }
+                    titleArea
+                }
                 if !session.lastUserMessage.isEmpty {
                     Text(session.lastUserMessage)
                         .font(.system(size: 10))
@@ -363,12 +535,29 @@ private struct SessionRow: View {
                 }
             }
             .padding(.top, 1)
+
+            if hasDetail {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.12)) { expanded.toggle() }
+                } label: {
+                    Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(.secondary)
+                        .frame(width: 14, height: 20)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(expanded ? "접기" : "토큰·지속시간 보기")
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { if !isEditing { onTap() } }
+
+            if expanded { expandedDetail }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 7)
-        .background(hovering ? Color.primary.opacity(0.08) : Color.clear)
-        .contentShape(Rectangle())
-        .onTapGesture { if !isEditing { onTap() } }
+        .background(rowBackground)
         .onHover { hovering = $0 }
         .task(id: session.cwd) {
             let info = await Task.detached(priority: .background) {
@@ -436,16 +625,17 @@ private struct SessionRow: View {
     }
 
     private var activity: String {
+        if session.isThinking { return "생각 중…" }   // R9c: 도구 없이 추론 중일 때
         guard !session.toolName.isEmpty else { return "" }
         return session.toolDetail.isEmpty ? session.toolName : "\(session.toolName): \(session.toolDetail)"
     }
 
-    private var statusBarColor: Color {
-        if case .resting = session.status { return Color.secondary.opacity(0.35) }
-        switch session.workState {
-        case .working:   return .green
-        case .responded: return .orange
+    /// 응답 대기 행은 주황 워시로 띄워 즉시 눈에 띄게.
+    private var rowBackground: Color {
+        if session.displayStatus == .waiting {
+            return Color.orange.opacity(hovering ? 0.13 : 0.07)
         }
+        return hovering ? Color.primary.opacity(0.08) : Color.clear
     }
 
     private var relativeTime: String {
@@ -454,6 +644,112 @@ private struct SessionRow: View {
         if s < 3600 { return "\(s / 60)m" }
         if s < 86400 { return "\(s / 3600)h" }
         return "\(s / 86400)d"
+    }
+
+    // MARK: - 펼침 상세 (토큰·지속시간·활동)
+
+    private var expandedDetail: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .center, spacing: 14) {
+                // R4: statusline 캐시의 네이티브 %가 있으면 우선(창 크기까지 정확), 없으면 합산 폴백.
+                if let native = StatuslineManager.nativeContext(sessionId: session.sessionId) {
+                    nativeContextGauge(native)
+                } else if let tokens = session.contextTokens {
+                    contextGauge(tokens)
+                }
+                if let dur = session.durationSeconds {
+                    Text("\(Self.formatDuration(dur)) 지속 · \(relativeTime) 전 활동")
+                        .font(.system(size: 9))
+                        .foregroundColor(Color.secondary.opacity(0.9))
+                }
+                Spacer(minLength: 0)
+            }
+            // R7: API 요청 32MB 한계 압력 — 22MB↑에서만 노출(경고 22/위험 26)
+            if let payload = session.activePayloadBytes, payload >= SessionScanner.payloadWarnBytes {
+                payloadGauge(payload)
+            }
+        }
+        .padding(.leading, 27)   // C 배지/텍스트 열 아래 정렬
+        .padding(.trailing, 2)
+    }
+
+    /// payload 압력 게이지: "~23MB / 32MB" (22MB 노랑 / 26MB 빨강).
+    private func payloadGauge(_ bytes: Int) -> some View {
+        let limit = SessionScanner.payloadLimitBytes
+        let ratio = min(1.0, Double(bytes) / Double(limit))
+        let color: Color = bytes >= SessionScanner.payloadCritBytes ? .red : .yellow
+        let mb = Double(bytes) / 1_048_576
+        return HStack(spacing: 5) {
+            Text(String(format: "payload ~%.0fMB / 32MB", mb))
+                .font(.system(size: 9, design: .monospaced))
+                .foregroundColor(color)
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.secondary.opacity(0.15))
+                    Capsule().fill(color.opacity(0.8))
+                        .frame(width: max(2, geo.size.width * ratio))
+                }
+            }
+            .frame(width: 80, height: 4)
+        }
+        .help("API 요청 payload 근사치 — 32MB 한계에 가까워지면 /compact 권장")
+    }
+
+    /// 네이티브 컨텍스트 게이지 (R4): Claude Code가 계산한 %와 실제 창 크기(200k/1M) 표시.
+    private func nativeContextGauge(_ native: StatuslineManager.NativeContext) -> some View {
+        let ratio = Double(native.usedPercentage) / 100
+        let sizeLabel = native.windowSize >= 1_000_000
+            ? "\(native.windowSize / 1_000_000)M" : "\(native.windowSize / 1000)k"
+        return VStack(alignment: .leading, spacing: 2) {
+            Text("ctx \(native.usedPercentage)% · \(sizeLabel) 창")
+                .font(.system(size: 9, design: .monospaced))
+                .foregroundColor(.secondary)
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.secondary.opacity(0.15))
+                    Capsule()
+                        .fill(AiruncatDesign.aiColor(.claude).opacity(0.75))
+                        .frame(width: max(2, geo.size.width * ratio))
+                }
+            }
+            .frame(height: 4)
+        }
+        .frame(width: 128)
+        .help("Claude Code 네이티브 값 (statusline)")
+    }
+
+    /// 컨텍스트 창 채움 게이지: "82k / 200k (41%)" + 채움 바(200k 분모, 100% clamp).
+    private func contextGauge(_ tokens: Int) -> some View {
+        let limit = 200_000
+        let ratio = min(1.0, Double(tokens) / Double(limit))
+        return VStack(alignment: .leading, spacing: 2) {
+            Text("\(Self.formatK(tokens)) / 200k (\(Int(ratio * 100))%)")
+                .font(.system(size: 9, design: .monospaced))
+                .foregroundColor(.secondary)
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.secondary.opacity(0.15))
+                    Capsule()
+                        .fill(AiruncatDesign.aiColor(.claude).opacity(0.75))
+                        .frame(width: max(2, geo.size.width * ratio))
+                }
+            }
+            .frame(height: 4)
+        }
+        .frame(width: 128)
+    }
+
+    private static func formatK(_ n: Int) -> String {
+        if n >= 1000 { return "\(n / 1000)k" }
+        return "\(n)"
+    }
+
+    private static func formatDuration(_ seconds: Int) -> String {
+        if seconds < 60 { return "\(seconds)s" }
+        let m = seconds / 60
+        if m < 60 { return "\(m)m" }
+        let h = m / 60, rem = m % 60
+        return rem == 0 ? "\(h)h" : "\(h)h \(rem)m"
     }
 }
 
@@ -660,9 +956,9 @@ private struct RecentlyClosedRow: View {
                 .font(.system(size: 8, weight: .bold, design: .monospaced))
                 .padding(.horizontal, 3)
                 .padding(.vertical, 2)
-                .background(Color.primary.opacity(0.05))
+                .background(AiruncatDesign.aiColor(item.info.aiKind).opacity(0.10))
                 .clipShape(RoundedRectangle(cornerRadius: 3))
-                .foregroundColor(Color.secondary.opacity(0.6))
+                .foregroundColor(AiruncatDesign.aiColor(item.info.aiKind).opacity(0.7))
 
             Text(item.info.projectName.isEmpty ? item.info.displayName : item.info.projectName)
                 .font(.system(size: 11))

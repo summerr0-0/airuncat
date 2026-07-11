@@ -25,14 +25,19 @@ Sources/airuncat/
   MCPManager.swift         toggle/create/delete (atomic JSON write, settings.local.json)
   MCPView.swift            MCP 탭 UI (토글/생성/삭제, UUID 에러 배너)
   SkillManager.swift       skillsDir 상수 + Obsidian 마이그레이션
-  SkillScanner.swift       ~/.airuncat/skills/SKILL_*.md + commands 링크 상태 스캔
+  SkillScanner.swift       ~/.airuncat/skills(글로벌) + 여러 프로젝트 <cwd>/.claude/{commands,skills}(프로젝트별 group) + ~/.claude/skills(네이티브, 출처별 group) 스캔
   SkillToggler.swift       symlink create/remove, createSkill, deleteSkill
-  SkillsView.swift         Skills 탭 UI (토글/수리/추가/삭제)
+  SkillsView.swift         Skills 탭 UI (토글/수리/추가/삭제, 스코프별 접이식 섹션: 글로벌/프로젝트·폴더별/네이티브·출처별)
   PromptScanner.swift      ~/.airuncat/prompts/*.md 파싱
   PromptManager.swift      migrate/create/delete/togglePin
   PromptLibraryView.swift  Prompts 탭 UI (핀/카테고리/검색/추가/삭제)
-  HarnessScanner.swift     .claude/rules + ~/.claude/rules 파싱 (RuleFile: scope/summary/mtime)
+  HarnessScanner.swift     .claude/rules + ~/.claude/rules 파싱 (RuleFile: scope/summary/mtime), 점수 입력 필드(CLAUDE.md wordCount/@import, projectSkillCount)
+  HarnessScoring.swift     5축 성숙도 채점 (HarnessGrade A~F, AxisResult, evaluate — 프로젝트-로컬 정적 신호만), HarnessSetupAction
+  HarnessSetup.swift       ✗ 항목 자동 보완 (CLAUDE.md/rule/deny권한 생성, hook 비활성 템플릿)
   RuleManager.swift        rule 파일 create/delete (원자 쓰기)
+  HookRecipeManager.swift  글로벌 훅 레시피 설치/제거 (스크립트 ~/.claude/hooks/airuncat-*.sh + settings.json 원자 병합, 상태 ~/.airuncat/hook-state/), --hook-recipe CLI. 레시피 3종: 세션 텔레메트리/서브에이전트 트래커/rules 주입기
+  ProjectHookRecipe.swift  프로젝트 훅 레시피 카탈로그 (Phase 15): 타입 감지(swift/node/python/rust/go) + build/format/lint/guard 5종, Harness 팝오버 "+ 레시피" 피커로 비활성 추가→검토 후 토글
+  StatuslineManager.swift  Claude Code statusline 설치/제거 (C5: 기존 설정 보호) — stdin JSON을 세션별 캐시(±3% 안정화) 후 "모델·ctx%" 출력, nativeContext(sessionId) 조회. --statusline CLI
   GlobalShortcut.swift     CGEvent tap ⌥Space 글로벌 단축키 등록·해제 (HandlerBox, CFMachPort)
   ApplicationController.swift  @MainActor ObservableObject, tap CFMachPort 생명주기 관리
   PaletteViewModel.swift   스킬+프롬프트 통합 검색·필터·히스토리 (palette-history.json)
@@ -40,6 +45,8 @@ Sources/airuncat/
   StatsScanner.swift       ~/.claude/projects/ JSONL 집계 (mtime 증분 캐시, tool_use Skill 집계)
   StatsStore.swift         @MainActor ObservableObject, period 필터, heatmap/topSkills 계산
   StatsView.swift          Stats 탭 UI (기간 피커, 히트맵 7×24, 스킬 바 차트)
+  UsageAPIClient.swift     Keychain OAuth 토큰으로 /api/oauth/usage 호출 (5h/주간 실제 %·resets_at) + 만료 시 lazy 토큰 리프레시(레이스 방어, Keychain 병합 재기록)
+  UsageStore.swift         @MainActor, 사용량 게시 (오류별 TTL, 429 지수백오프, stale 서빙 15min → 헤더 * 배지)
   TagStore.swift / CustomNameStore.swift / NotificationManager.swift
 build.sh                   release 빌드 + .app 번들 조립 + 자체 서명
 ```
@@ -57,6 +64,9 @@ build.sh                   release 빌드 + .app 번들 조립 + 자체 서명
 | MCP 활성 상태 | `~/.claude/settings.local.json` (`enabledMcpjsonServers` 배열) |
 | 팔레트 이력 | `~/.airuncat/palette-history.json` (최근 50건, 원자 쓰기) |
 | 통계 캐시 | `~/.airuncat/stats-cache.json` (SessionStat 배열, mtime 증분) |
+| 사용량 자격증명 | macOS Keychain `Claude Code-credentials` (Claude Code OAuth 토큰; 만료 시 lazy 리프레시 병합 재기록) |
+| 훅 상태 | `~/.airuncat/hook-state/sessions/<id>/` (metrics.json, subagents.jsonl, injected-rules.json) |
+| statusline 캐시 | `~/.airuncat/hook-state/statusline/<sessionId>.json` (네이티브 ctx %·rate limits·모델) |
 
 **스킬 수동 추가:** `~/.airuncat/skills/SKILL_[NAME].md` 생성 → 앱 C/G 배지 토글로 링크
 **프롬프트 수동 추가:** `~/.airuncat/prompts/<name>.md` 생성 → 새로고침
@@ -79,6 +89,8 @@ build.sh                   release 빌드 + .app 번들 조립 + 자체 서명
 ## Hooks
 
 - `swift build` on .swift edit / `.build/`, `airuncat.app/` 편집 차단 / `~/.claude/projects/**/*.jsonl` 편집 차단
+- 훅 입력은 **stdin JSON**(`INPUT=$(cat)` 후 python3로 tool_input 추출), 차단은
+  `permissionDecision: "deny"` JSON — `$TOOL_INPUT` env나 `exit 1` 차단은 **작동하지 않는 오형식**(Phase 15에서 수리)
 
 ## Workflow
 

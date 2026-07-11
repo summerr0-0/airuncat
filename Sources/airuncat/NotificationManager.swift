@@ -31,6 +31,16 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         UNUserNotificationCenter.current().add(request, withCompletionHandler: nil)
     }
 
+    /// 사용량 임계/리셋 알림 (R8). 같은 id는 최신 1건으로 대체된다.
+    func sendUsageAlert(id: String, title: String, body: String) {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+        let request = UNNotificationRequest(identifier: "usage-\(id)", content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(request, withCompletionHandler: nil)
+    }
+
     func dismissIdleNotification(for sessionId: String) {
         let id = "idle-\(sessionId)"
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [id])
@@ -55,7 +65,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
                     id: id, sessionId: id, title: "", customName: nil,
                     projectName: "", cwd: cwd, gitBranch: "",
                     firstInstruction: "", lastUserMessage: "", toolName: "", toolDetail: "",
-                    lastActivity: Date(), messageCount: 0, category: .dev, workState: .responded, aiKind: .claude
+                    lastActivity: Date(), messageCount: 0, workState: .responded, aiKind: .claude
                 )
                 ITermController.open(stub)
             }

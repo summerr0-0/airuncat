@@ -90,10 +90,13 @@ struct MemoryPopoverView: View {
     }
 
     private func typeSectionHeader(_ type: MemoryType, count: Int) -> some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 5) {
+            Circle()
+                .fill(AiruncatDesign.memoryTypeColor(type))
+                .frame(width: 6, height: 6)
             Text(type.rawValue)
                 .font(.system(size: 9, weight: .semibold))
-                .foregroundColor(typeColor(type).opacity(0.9))
+                .foregroundColor(AiruncatDesign.memoryTypeColor(type).opacity(0.9))
             Text("(\(count))")
                 .font(.system(size: 9))
                 .foregroundColor(.secondary.opacity(0.7))
@@ -127,6 +130,8 @@ struct MemoryPopoverView: View {
         isLoading = false
     }
 
+    // typeColor는 AiruncatDesign.memoryTypeColor로 이동(색 정체성 중앙화).
+
     private func delete(_ record: MemoryRecord) {
         let dir = memoryDir
         Task {
@@ -142,15 +147,6 @@ struct MemoryPopoverView: View {
         }
     }
 
-    private func typeColor(_ type: MemoryType) -> Color {
-        switch type {
-        case .user:      return .blue
-        case .feedback:  return .orange
-        case .project:   return .green
-        case .reference: return .purple
-        case .unknown:   return .secondary
-        }
-    }
 }
 
 
@@ -166,7 +162,11 @@ private struct MemoryRecordRow: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(alignment: .top, spacing: 6) {
+            HStack(alignment: .top, spacing: 7) {
+                Capsule()
+                    .fill(AiruncatDesign.memoryTypeColor(record.type).opacity(0.55))
+                    .frame(width: 2.5, height: 22)
+                    .padding(.top, 2)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(record.id)
                         .font(.system(size: 11, weight: .medium, design: .monospaced))

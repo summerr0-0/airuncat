@@ -479,6 +479,13 @@ private struct SessionRow: View {
                         .font(.system(size: 9, weight: session.displayStatus == .waiting ? .bold : .medium))
                         .foregroundColor(AiruncatDesign.statusColor(session.displayStatus))
                         .fixedSize()
+                    // R10: friction 배지 — 오류율↑/방치 갭이면 경고, 툴팁에 사유
+                    if let friction = session.frictionReason {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 8))
+                            .foregroundColor(.orange)
+                            .help(friction)
+                    }
                     titleArea
                 }
                 if !session.lastUserMessage.isEmpty {

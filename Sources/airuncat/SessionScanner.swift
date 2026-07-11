@@ -54,6 +54,7 @@ struct SessionInfo: Identifiable {
     var durationSeconds: Int? = nil  // 첫 이벤트 timestamp ~ 마지막 활동(mtime)
     var activePayloadBytes: Int? = nil  // compact 이후 활성 payload 근사 (R7, ≥22MB일 때만 채움)
     var isThinking: Bool = false        // 최신 assistant에 thinking 블록 + 30s 내 활동 (R9c)
+    var frictionReason: String? = nil   // 세션 friction 사유 (R10): 오류율↑/방치 갭. nil=건강
 
     var status: SessionStatus { SessionStatus(lastActivity: lastActivity) }
     var displayName: String { customName ?? projectName }
@@ -165,6 +166,11 @@ struct SessionScanner {
         var contextTokens: Int? = nil        // 최신 assistant usage 합산(raw)
         var tailSessionIds = Set<String>()    // R9a: tail에 세션ID 2개↑면 부분 읽기 오표시 방지
         var isThinking = false                // R9c: 최신 assistant의 thinking 블록
+        var toolResults = 0                   // R10: tail의 tool_result 표본
+        var toolErrors = 0                    //      그중 is_error
+        var newerTs: Date? = nil              // R10: 방치 갭(뒤에서 앞으로 인접 이벤트 간격)
+        var maxGapSeconds = 0.0
+        var maxGapEnd: Date? = nil            //      갭이 끝난 시각(최근 갭만 배지 대상)
         var completedToolIds = Set<String>()  // tool_use IDs that already have a tool_result
         var activeSkill: String? = nil
         var foundSkillCheck = false           // true once we've examined the most recent Skill call
@@ -176,6 +182,15 @@ struct SessionScanner {
             let evType = obj["type"] as? String ?? ""
             guard evType == "user" || evType == "assistant" else { continue }
 
+            // R10: 인접 이벤트 간 최대 갭(newest→oldest 순회라 newer가 먼저 옴).
+            if let ts = (obj["timestamp"] as? String).flatMap(parseTimestamp) {
+                if let newer = newerTs {
+                    let gap = newer.timeIntervalSince(ts)
+                    if gap > maxGapSeconds { maxGapSeconds = gap; maxGapEnd = newer }
+                }
+                newerTs = ts
+            }
+
             if lastEventRole.isEmpty { lastEventRole = evType }
 
             // Collect completed tool IDs from tool_result blocks in user events.
@@ -186,6 +201,8 @@ struct SessionScanner {
                let arr = msg["content"] as? [[String: Any]] {
                 for block in arr where (block["type"] as? String) == "tool_result" {
                     if let id = block["tool_use_id"] as? String { completedToolIds.insert(id) }
+                    toolResults += 1                                          // R10 표본
+                    if (block["is_error"] as? Bool) == true { toolErrors += 1 }
                 }
             }
 
@@ -269,6 +286,18 @@ struct SessionScanner {
         let activePayloadBytes: Int? = size >= payloadWarnBytes
             ? activePayload(path: path, size: size) : nil
 
+        // R10 friction: 오류율 >20%(표본 ≥5) / 방치 갭 >45min (OMC friction-report 임계).
+        var frictions: [String] = []
+        if toolResults >= 5, Double(toolErrors) / Double(toolResults) > 0.2 {
+            frictions.append("도구 오류율 \(toolErrors * 100 / toolResults)% (\(toolErrors)/\(toolResults))")
+        }
+        // 갭은 "최근에 끝난" 것만(2h) — 어제 닫고 오늘 재개한 세션의 자연 공백은 오탐이라 제외.
+        if maxGapSeconds > 45 * 60,
+           let end = maxGapEnd, Date().timeIntervalSince(end) < 2 * 3600 {
+            frictions.append("\(Int(maxGapSeconds / 60))분 방치 갭")
+        }
+        let frictionReason = frictions.isEmpty ? nil : frictions.joined(separator: " · ")
+
         let sessionStatus = SessionStatus(lastActivity: mtime)
         let workState: WorkState
         if lastEventRole == "user" || lastAssistantHasTool {
@@ -301,7 +330,8 @@ struct SessionScanner {
             contextTokens: contextTokens,
             durationSeconds: durationSeconds,
             activePayloadBytes: activePayloadBytes,
-            isThinking: isThinking
+            isThinking: isThinking,
+            frictionReason: frictionReason
         )
     }
 

@@ -98,8 +98,9 @@ enum HarnessScoring {
         let postHook = info.hooks.contains { $0.enabled && $0.event == "PostToolUse" }
         let preHook  = info.hooks.contains { $0.enabled && $0.event == "PreToolUse" }
         let hasAutomation = info.projectSkillCount >= 1 || info.enabledHookCount >= 1
-        // "정리됨" 판정: airuncat이 만든 TODO 참고 템플릿(비활성)은 클러터로 보지 않음.
-        let staleDisabled = info.hooks.filter { !$0.enabled && !$0.commandSummary.hasPrefix("# TODO") }
+        // "정리됨" 판정(Phase 15 재정의): 소량의 비활성 hook(레시피/템플릿 검토 대기)은 정상,
+        // 쌓이면(>2) 클러터. 전체 제외는 지표를 죽이고, TODO-prefix만 제외는 레시피에 역행.
+        let disabledHookCount = info.hooks.filter { !$0.enabled }.count
 
         // 축 1 — 준비 (Scaffolding)
         let prep = AxisResult(
@@ -164,8 +165,8 @@ enum HarnessScoring {
                 ScoreItem(id: "imp-auto", label: "반복 작업 자동화",
                           passed: hasAutomation, detail: nil),
                 ScoreItem(id: "imp-clean", label: "정리됨",
-                          passed: staleDisabled.isEmpty,
-                          detail: staleDisabled.isEmpty ? nil : "비활성 hook \(staleDisabled.count)"),
+                          passed: disabledHookCount <= 2,
+                          detail: disabledHookCount <= 2 ? nil : "비활성 hook \(disabledHookCount)"),
             ],
             deferredCount: 3, showsMaturity: true
         )

@@ -35,7 +35,8 @@ Sources/airuncat/
   HarnessScoring.swift     5축 성숙도 채점 (HarnessGrade A~F, AxisResult, evaluate — 프로젝트-로컬 정적 신호만), HarnessSetupAction
   HarnessSetup.swift       ✗ 항목 자동 보완 (CLAUDE.md/rule/deny권한 생성, hook 비활성 템플릿)
   RuleManager.swift        rule 파일 create/delete (원자 쓰기)
-  HookRecipeManager.swift  훅 레시피 설치/제거 (스크립트 ~/.claude/hooks/airuncat-*.sh + settings.json 원자 병합, 상태 ~/.airuncat/hook-state/), --hook-recipe CLI. 레시피 3종: 세션 텔레메트리/서브에이전트 트래커/rules 주입기
+  HookRecipeManager.swift  글로벌 훅 레시피 설치/제거 (스크립트 ~/.claude/hooks/airuncat-*.sh + settings.json 원자 병합, 상태 ~/.airuncat/hook-state/), --hook-recipe CLI. 레시피 3종: 세션 텔레메트리/서브에이전트 트래커/rules 주입기
+  ProjectHookRecipe.swift  프로젝트 훅 레시피 카탈로그 (Phase 15): 타입 감지(swift/node/python/rust/go) + build/format/lint/guard 5종, Harness 팝오버 "+ 레시피" 피커로 비활성 추가→검토 후 토글
   StatuslineManager.swift  Claude Code statusline 설치/제거 (C5: 기존 설정 보호) — stdin JSON을 세션별 캐시(±3% 안정화) 후 "모델·ctx%" 출력, nativeContext(sessionId) 조회. --statusline CLI
   GlobalShortcut.swift     CGEvent tap ⌥Space 글로벌 단축키 등록·해제 (HandlerBox, CFMachPort)
   ApplicationController.swift  @MainActor ObservableObject, tap CFMachPort 생명주기 관리
@@ -88,6 +89,8 @@ build.sh                   release 빌드 + .app 번들 조립 + 자체 서명
 ## Hooks
 
 - `swift build` on .swift edit / `.build/`, `airuncat.app/` 편집 차단 / `~/.claude/projects/**/*.jsonl` 편집 차단
+- 훅 입력은 **stdin JSON**(`INPUT=$(cat)` 후 python3로 tool_input 추출), 차단은
+  `permissionDecision: "deny"` JSON — `$TOOL_INPUT` env나 `exit 1` 차단은 **작동하지 않는 오형식**(Phase 15에서 수리)
 
 ## Workflow
 

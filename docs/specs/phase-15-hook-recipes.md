@@ -171,7 +171,39 @@ Harness 팝오버 hooks 섹션 아래(또는 헤더 우측)에 진입점:
 5. guard 레시피: Claude Code hook 프로토콜(stdin JSON, 종료코드)로 실제 차단 동작 검증 후 활성화
 6. `/run-clawde` 팝오버 육안 확인
 
+# 정합화 (2026-07-10 — OMC 백로그 T2/T5 이후)
+
+이 기획(6/24) 이후 OMC 갭 분석 백로그가 **다른 훅 시스템을 이미 구축**했다. 반영:
+
+1. **이름 충돌 해소**: `HookRecipe` 타입은 이미 존재(HookRecipeManager.swift — 글로벌 스크립트
+   레시피: 텔레메트리/서브에이전트/rules). Phase 15 카탈로그 타입은
+   **`ProjectHookRecipe`**(신규 파일 ProjectHookRecipe.swift)로 명명.
+2. **글로벌 레시피 GUI는 Phase 15.1로 분리** (리뷰어 스틸맨 수용):
+   Harness 팝오버는 프로젝트 스코프 설계(점수도 프로젝트-로컬 신호만)라 전역 토글을 두면
+   (a) 스코프 오인, (b) 액션→점수 인과 단절, (c) 두 토글 의미(검토 후 켜기 vs 설치/제거)
+   혼재가 생긴다. → Phase 15는 **프로젝트 레시피만**. 글로벌 레시피(3종+statusline) UI는
+   별도 "전역" 섹션 설계로 15.1에서(현재 표면은 --hook-recipe/--statusline CLI).
+3. **guard 프로토콜 검증 완료** (claude-code-guide, 공식 hooks 문서):
+   - `exit 1`은 **비차단**(other exit = non-blocking). 차단은 `exit 2`+stderr 또는
+     **`exit 0` + JSON `{"hookSpecificOutput":{"hookEventName":"PreToolUse",
+     "permissionDecision":"deny","permissionDecisionReason":"…"}}`** (권장 후자).
+   - PostToolUse는 차단 불가(피드백만).
+   - → guard 2종(`block-sensitive`, `block-dangerous-bash`)을 초기 카탈로그에 **포함 확정**.
+     스크립트는 jq 의존 대신 확립된 `INPUT=$(cat)`+python3 패턴 사용.
+4. **부수 발견 — 이 repo 자체 훅 3건 전부 이중 placebo** (리뷰어 확인):
+   (a) `exit 1`은 비차단, (b) 그 이전에 `echo '$TOOL_INPUT' | jq`가 작은따옴표라 확장조차
+   안 되고 훅 입력은 원래 **stdin**으로 옴 → `file`이 항상 빈 문자열, 매칭 자체가 불발.
+   즉 가드 2건은 차단 못 하고, **PostToolUse 빌드 훅("편집 후 swift build")도 실행된 적 없음**.
+   → Phase 15 범위에 **자체 훅 3건 수리** 포함: `INPUT=$(cat)` stdin 파싱으로 교체,
+   가드는 `permissionDecision: "deny"` JSON, 빌드 훅은 stdin에서 file_path 추출.
+5. **imp-clean 재정의 (리뷰어 권장 (ii))**: "비활성 hook 전체 제외"는 imp-clean이 항상
+   통과하는 죽은 지표가 됨 → **`비활성 hook 수 ≤ 2`면 통과**로 재정의
+   ("소량 검토 대기는 OK, 쌓이면 클러터"). 신호 유지 + 레시피 추가 1~2건에 역행 없음.
+6. **명명 최종**: 카탈로그는 `ProjectHookRecipe`(+중첩 `Category`), 정적 목록은
+   `ProjectHookRecipe.catalog`. 본문(데이터 모델/범위/변경 파일)의 구명칭은 이 절이 우선.
+
 # Next Action
-- [ ] Gemini 검토(불가 → 별도 Claude 리뷰어 패스)
-- [ ] 사용자 승인 (Step 3) — 승인 전 개발 금지
-- [ ] guard 레시피 hook 프로토콜 검증(claude-code-guide)
+- [x] guard 레시피 hook 프로토콜 검증(claude-code-guide) — 완료(위 3)
+- [x] Claude 리뷰어 패스(Gemini 불가 대체) — NEEDS_FIX 6건 반영(15.1 분리·imp-clean (ii)·
+      자체 훅 3건 수리·명명 전파)
+- [x] 사용자 승인 (Step 3) — 승인됨(리뷰 반영 조건부 사전 승인, 2026-07-10)

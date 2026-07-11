@@ -418,9 +418,14 @@ stdin 캐시가 있으면 그걸 쓰고, 없으면 지금 방식(토큰 합산) 
 - **Fulfills**: R4
 - **Depends on**: T3
 
-### T5: 레시피 3종 (R6a/b/c) [P2~P3]
+### T5: 레시피 3종 (R6a/b/c) [P2~P3] — **완료**
 - **Fulfills**: R6
 - **Depends on**: T2 — T3/T4와 병렬 가능
+- 구현 노트: R6a 완성형(duration·메시지/도구 수 — 실측 검증), R6b는 SubagentStop만
+  (SubagentStart 이벤트 실재 미확인 → raw JSON append로 스키마 드리프트 대비),
+  R6c는 paths 글롭 매칭 + 세션별 해시 캐시(2회차 무주입 검증). 함정 발견·수정:
+  `python3 - <<heredoc`은 heredoc이 stdin을 점유해 훅 JSON을 못 읽음 → `INPUT=$(cat)`
+  후 env(HOOK_INPUT) 전달 패턴으로 확립. 레시피 UI는 Phase 15에서(현재 --hook-recipe CLI).
 
 ### T6: 세션 표시 개선 1 (R7 payload + R9 소품) [P2~P3] — **완료**
 - **Fulfills**: R7, R9a, R9c (R9b 지터 안정화는 stdin 데이터 의존 → **T4로 이관**)

@@ -3,7 +3,7 @@ import AppKit
 
 // MARK: - Tab
 
-private enum Tab { case sessions, skills, prompts, mcp, stats }
+private enum Tab { case sessions, skills, prompts, mcp, stats, global }
 
 // MARK: - Filter Mode
 
@@ -36,8 +36,10 @@ struct MenuContentView: View {
                 PromptLibraryView(store: store)
             } else if activeTab == .mcp {
                 MCPView()
-            } else {
+            } else if activeTab == .stats {
                 StatsView(statsStore: statsStore)
+            } else {
+                GlobalRecipesView()
             }
             Divider()
             footer
@@ -59,6 +61,7 @@ struct MenuContentView: View {
             TabButton("Prompts", icon: "text.bubble", active: activeTab == .prompts) { switchTab(.prompts) }
             TabButton("MCP", icon: "puzzlepiece", active: activeTab == .mcp) { switchTab(.mcp) }
             TabButton("Stats", icon: "chart.bar", active: activeTab == .stats) { switchTab(.stats) }
+            TabButton("Global", icon: "globe", active: activeTab == .global) { switchTab(.global) }
             Spacer()
         }
         .padding(.horizontal, 8)

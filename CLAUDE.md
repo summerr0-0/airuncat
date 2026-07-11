@@ -24,6 +24,7 @@ Sources/airuncat/
   MCPScanner.swift         ~/.mcp.json 파싱, enabledMcpjsonServers 활성 상태
   MCPManager.swift         toggle/create/delete (atomic JSON write, settings.local.json)
   MCPView.swift            MCP 탭 UI (토글/생성/삭제, UUID 에러 배너)
+  GlobalRecipesView.swift  Global 탭 UI (Phase 15.1): 글로벌 레시피 4종(훅 3 + statusline) 설치/제거 토글, 스크립트 인앱 미리보기, foreign statusline 보호
   SkillManager.swift       skillsDir 상수 + Obsidian 마이그레이션
   SkillScanner.swift       ~/.airuncat/skills(글로벌) + 여러 프로젝트 <cwd>/.claude/{commands,skills}(프로젝트별 group) + ~/.claude/skills(네이티브, 출처별 group) 스캔
   SkillToggler.swift       symlink create/remove, createSkill, deleteSkill

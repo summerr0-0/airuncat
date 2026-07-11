@@ -225,9 +225,16 @@ enum HookRecipeManager {
 
     // MARK: Install / Uninstall
 
+    /// settings.json이 존재하는데 JSON 파싱이 안 되는 상태 — 이때 install하면 빈 {} 기반으로
+    /// 덮어써 파손 파일을 클로버하므로 거부한다(15.1 가드).
+    static func settingsCorrupt() -> Bool {
+        FileManager.default.fileExists(atPath: PathConstants.claudeSettings) && readSettings() == nil
+    }
+
     /// 설치: 스크립트 파일 기록(0755) + settings.json에 항목 추가. 이미 있으면 no-op.
     @discardableResult
     static func install(_ recipe: HookRecipe) -> String? {
+        if settingsCorrupt() { return "settings.json 파싱 불가 — 수동 확인 필요(덮어쓰지 않음)" }
         let fm = FileManager.default
         // 1. 스크립트 파일
         do {

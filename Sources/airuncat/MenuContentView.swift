@@ -453,6 +453,7 @@ private struct SessionRow: View {
     @State private var memoryCount: Int = 0
     @State private var claudeMdExists: Bool = false
     @State private var expanded = false
+    @State private var subagentCount: Int? = nil   // 15.2: subagent-tracker 기록 수
 
     /// 펼칠 상세(토큰/지속시간/payload)가 있을 때만 disclosure 노출.
     private var hasDetail: Bool {
@@ -575,6 +576,12 @@ private struct SessionRow: View {
             }.value
             memoryCount = count
         }
+        .task(id: session.sessionId + "-hookstate") {   // 15.2: 1회 로드(14Hz body 읽기 회피)
+            let sid = session.sessionId
+            subagentCount = await Task.detached(priority: .background) {
+                HookStateReader.subagentCount(sessionId: sid)
+            }.value
+        }
         .task(id: session.cwd + "-claudemd") {
             let cwd = session.cwd
             let exists = await Task.detached(priority: .background) {
@@ -664,6 +671,13 @@ private struct SessionRow: View {
                     Text("\(Self.formatDuration(dur)) 지속 · \(relativeTime) 전 활동")
                         .font(.system(size: 9))
                         .foregroundColor(Color.secondary.opacity(0.9))
+                }
+                // 15.2: subagent-tracker 기록 (없으면 침묵)
+                if let n = subagentCount {
+                    Text("서브에이전트 \(n)회")
+                        .font(.system(size: 9))
+                        .foregroundColor(Color.secondary.opacity(0.9))
+                        .help("subagent-tracker 레시피가 기록한 SubagentStop 이벤트 수")
                 }
                 Spacer(minLength: 0)
             }
@@ -952,6 +966,7 @@ private struct RecentlyClosedRow: View {
     let item: (info: SessionInfo, closedAt: Date)
     let onTap: () -> Void
     @State private var hovering = false
+    @State private var metrics: HookStateReader.SessionMetrics? = nil   // 15.2: 텔레메트리 캡션
 
     var body: some View {
         HStack(spacing: 9) {
@@ -967,6 +982,15 @@ private struct RecentlyClosedRow: View {
                 .font(.system(size: 11))
                 .foregroundColor(Color.secondary.opacity(0.8))
                 .lineLimit(1)
+
+            // 15.2: session-telemetry 메트릭 캡션 (없으면 침묵)
+            if let caption = metricsCaption {
+                Text(caption)
+                    .font(.system(size: 9, design: .monospaced))
+                    .foregroundColor(Color.secondary.opacity(0.6))
+                    .lineLimit(1)
+                    .help("session-telemetry 레시피가 기록한 세션 메트릭")
+            }
 
             Spacer(minLength: 4)
 
@@ -988,9 +1012,27 @@ private struct RecentlyClosedRow: View {
         .contentShape(Rectangle())
         .onTapGesture { onTap() }
         .onHover { hovering = $0 }
+        .task(id: item.info.sessionId) {   // body 재렌더(14Hz)에서 파일 읽지 않게 1회 로드
+            let sid = item.info.sessionId
+            metrics = await Task.detached(priority: .background) {
+                HookStateReader.metrics(sessionId: sid)
+            }.value
+        }
         .help(item.info.aiKind == .claude
             ? "Resume: claude -r \(item.info.sessionId)"
             : "Opens a new Gemini session in: \(item.info.cwd)")
+    }
+
+    /// "34m · 도구 12회" — 있는 필드만. user_messages는 부풀림 이슈로 미표시.
+    private var metricsCaption: String? {
+        guard let m = metrics else { return nil }
+        var parts: [String] = []
+        if let d = m.durationSeconds {
+            let mins = d / 60
+            parts.append(mins >= 60 ? "\(mins / 60)h \(mins % 60)m" : (mins > 0 ? "\(mins)m" : "\(d)s"))
+        }
+        if let t = m.toolUses, t > 0 { parts.append("도구 \(t)회") }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 }
 

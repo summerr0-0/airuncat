@@ -14,6 +14,7 @@ struct HarnessPopoverView: View {
     @State private var scoreExpanded = false
     @State private var settingUp = false
     @State private var recipesExpanded = false   // Phase 15 레시피 피커
+    @State private var wizardShown = false       // Phase 16 세팅 마법사
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -21,6 +22,10 @@ struct HarnessPopoverView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     scoreSection
+                    if wizardShown {
+                        Divider().padding(.vertical, 2)
+                        HarnessWizardView(info: $info, onDone: { wizardShown = false })
+                    }
                     Divider().padding(.vertical, 4)
                     rulesSection
                     Divider().padding(.vertical, 4)
@@ -59,6 +64,15 @@ struct HarnessPopoverView: View {
                     .font(.system(size: 10, weight: .medium))
                     .foregroundColor(.secondary)
                 Spacer()
+                // Phase 16: 낮은 등급(C 이하)일 때만 마법사 진입점
+                if score.grade == .c || score.grade == .d || score.grade == .f {
+                    Button(wizardShown ? "마법사 닫기" : "세팅 마법사") {
+                        withAnimation(.easeInOut(duration: 0.12)) { wizardShown.toggle() }
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundColor(wizardShown ? .secondary : AiruncatDesign.aiColor(.claude))
+                }
                 Text("5축")
                     .font(.system(size: 9))
                     .foregroundColor(.secondary)

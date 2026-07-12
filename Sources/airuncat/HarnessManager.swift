@@ -242,9 +242,10 @@ enum HarnessManager {
     private static func writeJSON(_ json: [String: Any], to path: String) -> String? {
         do {
             let data = try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys])
-            let tmp  = path + ".airuncat.tmp"
-            try data.write(to: URL(fileURLWithPath: tmp), options: .atomic)
-            try FileManager.default.moveItem(atPath: tmp, toPath: path)   // atomic rename
+            // .atomic이 내부적으로 temp+rename을 수행하며 기존 파일도 교체한다.
+            // (기존 moveItem 방식은 대상이 존재하면 실패 — 같은 settings.json에 두 번째
+            //  쓰기부터 전부 막히던 Phase 14 잠복 버그. --wizard-sim으로 발견)
+            try data.write(to: URL(fileURLWithPath: path), options: .atomic)
             return nil
         } catch {
             return "저장 실패: \(error.localizedDescription)"

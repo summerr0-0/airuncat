@@ -17,6 +17,35 @@ struct AiruncatApp: App {
             print("wrote \(out)")
             exit(0)
         }
+        // Debug path: `airuncat --wizard-sim <dir>` — Phase 16 마법사 적용 시퀀스 헤드리스 검증
+        if let idx = args.firstIndex(of: "--wizard-sim"), idx + 1 < args.count {
+            let dir = args[idx + 1]
+            guard var info = HarnessScanner.scan(cwd: dir) else { print("scan 실패"); exit(1) }
+            print("before: \(info.score.grade.rawValue) \(info.score.percent)%")
+            _ = HarnessSetup.createClaudeMd(cwd: dir)
+            _ = HarnessSetup.createStarterRule(cwd: dir)
+            info = HarnessScanner.scan(cwd: dir) ?? info
+            info = HarnessSetup.addSensitiveDenies(in: info)
+            if let e = info.writeError { print("denies err: \(e)") }
+            let types = ProjectTypeDetector.detect(cwd: dir)
+            for id in ["build-on-edit", "block-sensitive"] {
+                guard let r = ProjectHookRecipe.catalog.first(where: { $0.id == id }),
+                      let cmd = r.command(for: types) else { print("recipe skip: \(id)"); continue }
+                info = HarnessManager.addDisabledHookTemplate(event: r.event, matcher: r.matcher,
+                                                              command: cmd, in: info)
+                if let e = info.writeError { print("add \(id) err: \(e)") }
+                let hid = HarnessScanner.hookHash(event: r.event, matcher: r.matcher, command: cmd)
+                if let entry = info.hooks.first(where: { $0.id == hid && !$0.enabled }) {
+                    info = HarnessManager.toggle(hook: entry, in: info)
+                    if let e = info.writeError { print("toggle \(id) err: \(e)") }
+                } else {
+                    print("toggle \(id): entry not found (hooks=\(info.hooks.count))")
+                }
+            }
+            info = HarnessScanner.scan(cwd: dir) ?? info
+            print("after:  \(info.score.grade.rawValue) \(info.score.percent)%")
+            exit(0)
+        }
         // Debug path: `airuncat --statusline status|install|remove` (R3 검증용 CLI)
         if let idx = args.firstIndex(of: "--statusline") {
             let sub = (idx + 1 < args.count) ? args[idx + 1] : "status"

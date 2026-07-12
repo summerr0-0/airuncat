@@ -36,6 +36,7 @@ Sources/airuncat/
   HarnessScanner.swift     .claude/rules + ~/.claude/rules 파싱 (RuleFile: scope/summary/mtime), 점수 입력 필드(CLAUDE.md wordCount/@import, projectSkillCount)
   HarnessScoring.swift     5축 성숙도 채점 (HarnessGrade A~F, AxisResult, evaluate — 프로젝트-로컬 정적 신호만), HarnessSetupAction
   HarnessSetup.swift       ✗ 항목 자동 보완 (CLAUDE.md/rule/deny권한 생성, hook 비활성 템플릿)
+  HarnessWizardView.swift  세팅 마법사 (Phase 16): C 이하 프로젝트를 4단계(CLAUDE.md→rules→deny→레시피+켜기)로 F→B, --wizard-sim CLI 검증
   RuleManager.swift        rule 파일 create/delete (원자 쓰기)
   HookRecipeManager.swift  글로벌 훅 레시피 설치/제거 (스크립트 ~/.claude/hooks/airuncat-*.sh + settings.json 원자 병합, 상태 ~/.airuncat/hook-state/), --hook-recipe CLI. 레시피 3종: 세션 텔레메트리/서브에이전트 트래커/rules 주입기
   ProjectHookRecipe.swift  프로젝트 훅 레시피 카탈로그 (Phase 15): 타입 감지(swift/node/python/rust/go) + build/format/lint/guard 5종, Harness 팝오버 "+ 레시피" 피커로 비활성 추가→검토 후 토글

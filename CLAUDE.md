@@ -106,4 +106,6 @@ build.sh                   release 빌드 + .app 번들 조립 + 자체 서명
 
 ## Context (load on demand)
 
+전체 기능 개요는 `docs/feature-analysis.md` (무엇을/왜/어떻게 + 아키텍처).
+
 @docs/workflow.md @docs/data-sources.md @docs/cat-design.md

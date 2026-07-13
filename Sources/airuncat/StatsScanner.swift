@@ -152,17 +152,16 @@ enum StatsScanner {
     }
 
     private static func readSkillsUsed(path: String) -> [String] {
-        var st = stat()
-        let size = (lstat(path, &st) == 0) ? Int(st.st_size) : 0
-        let url = URL(fileURLWithPath: path)
-        let (fwd, bwd) = FileIOHelper.readLines(url: url, size: size)
-        // For large files, fwd and bwd are different chunks; concatenate for full coverage.
-        // For small files, both point to the same lines — deduplicate.
-        let lines = size <= FileIOHelper.smallFileLimit ? fwd : fwd + bwd
+        // 스킬 호출은 세션 파일 어디에나 있을 수 있어 **전체**를 스캔한다(head/tail 512KB로는
+        // 큰 세션 중간의 스킬을 놓침). mtime 증분 캐시라 파일당 1회만 파싱되어 비용은 제한적.
+        guard let fh = FileHandle(forReadingAtPath: path) else { return [] }
+        defer { try? fh.close() }
+        guard let data = try? fh.readToEnd() else { return [] }
 
         var skills: [String] = []
-        for line in lines {
-            guard let json = FileIOHelper.jsonObject(line),
+        for line in FileIOHelper.splitLines(data) {
+            guard line.contains("\"tool_use\""), line.contains("\"Skill\""),   // 빠른 사전 필터
+                  let json = FileIOHelper.jsonObject(line),
                   (json["type"] as? String) == "assistant",
                   let message = json["message"] as? [String: Any],
                   let contentArr = message["content"] as? [[String: Any]] else { continue }

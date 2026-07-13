@@ -19,8 +19,9 @@ enum SettingsFileIO {
 
     /// 원자 쓰기. 실패 시 오류 문자열, 성공 시 nil.
     static func write(_ root: [String: Any]) -> String? {
+        // .sortedKeys는 사용자가 수기 편집하는 파일의 키를 매 쓰기마다 재정렬해 diff를 어지럽힘 → 제외.
         guard let data = try? JSONSerialization.data(withJSONObject: root,
-                                                     options: [.prettyPrinted, .sortedKeys]) else {
+                                                     options: [.prettyPrinted]) else {
             return "settings.json 직렬화 실패"
         }
         do {

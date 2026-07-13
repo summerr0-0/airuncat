@@ -149,16 +149,24 @@ final class QualityScanner: ObservableObject {
             return .failure("실행 실패: \(error.localizedDescription)")
         }
 
+        // 파이프를 동시 배수 — 폴링 뒤에 읽으면 출력이 64KB 버퍼를 넘길 때 write가 막혀
+        // 프로세스가 안 끝나는 데드락. 별도 큐에서 EOF까지 읽는다.
+        let handle = out.fileHandleForReading
+        let readQ = DispatchQueue(label: "airuncat.quality.read")
+        var collected = Data()
+        readQ.async { collected = handle.readDataToEndOfFile() }
+
         // 60s 타임아웃 (블로킹 폴링 — detached 스레드 전용)
         let deadline = Date().addingTimeInterval(60)
         while proc.isRunning && Date() < deadline {
             Thread.sleep(forTimeInterval: 0.2)
         }
-        if proc.isRunning {
-            proc.terminate()
-            return .failure("타임아웃(60s)")
-        }
-        let data = out.fileHandleForReading.readDataToEndOfFile()
+        var timedOut = false
+        if proc.isRunning { proc.terminate(); timedOut = true }
+        proc.waitUntilExit()
+        readQ.sync {}   // terminate/exit로 파이프 EOF → 읽기 완료 대기
+        if timedOut { return .failure("타임아웃(60s)") }
+        let data = collected
 
         // 2층 파싱: 래퍼 JSON → (is_error 확인) → result → 펜스 제거 → 내부 JSON
         guard let wrapper = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],

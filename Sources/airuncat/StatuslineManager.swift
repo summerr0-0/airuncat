@@ -127,23 +127,8 @@ enum StatuslineManager {
         return NativeContext(usedPercentage: min(100, max(0, pct)), windowSize: size)
     }
 
-    // MARK: - settings.json IO (HookRecipeManager와 동일 패턴)
+    // MARK: - settings.json IO (공용 SettingsFileIO 사용)
 
-    private static func readSettings() -> [String: Any]? {
-        guard let data = try? Data(contentsOf: URL(fileURLWithPath: PathConstants.claudeSettings)) else { return nil }
-        return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
-    }
-
-    private static func writeSettings(_ root: [String: Any]) -> String? {
-        guard let data = try? JSONSerialization.data(withJSONObject: root,
-                                                     options: [.prettyPrinted, .sortedKeys]) else {
-            return "settings.json 직렬화 실패"
-        }
-        do {
-            try data.write(to: URL(fileURLWithPath: PathConstants.claudeSettings), options: .atomic)
-            return nil
-        } catch {
-            return "settings.json 쓰기 실패: \(error.localizedDescription)"
-        }
-    }
+    private static func readSettings() -> [String: Any]? { SettingsFileIO.read() }
+    private static func writeSettings(_ root: [String: Any]) -> String? { SettingsFileIO.write(root) }
 }

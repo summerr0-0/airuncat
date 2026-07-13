@@ -23,6 +23,7 @@ Sources/airuncat/
   MemoryPopoverView.swift  Memory 배지 팝오버 UI (타입별 그룹, 미리보기, 삭제)
   MCPScanner.swift         ~/.mcp.json 파싱, enabledMcpjsonServers 활성 상태
   MCPManager.swift         toggle/create/delete (atomic JSON write, settings.local.json)
+  SettingsFileIO.swift     ~/.claude/settings.json 공용 read/write/isCorrupt (원자 쓰기 — HookRecipe/Statusline 매니저 공유)
   MCPView.swift            MCP 탭 UI (토글/생성/삭제, UUID 에러 배너)
   GlobalRecipesView.swift  Global 탭 UI (Phase 15.1): 글로벌 레시피 4종(훅 3 + statusline) 설치/제거 토글, 스크립트 인앱 미리보기, foreign statusline 보호
   HookStateReader.swift    hook-state 읽기 (Phase 15.2): metrics.json(duration·도구 수 → Recently Closed 캡션), subagents.jsonl(카운트 → 행 확장)

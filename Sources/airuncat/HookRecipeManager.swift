@@ -227,9 +227,7 @@ enum HookRecipeManager {
 
     /// settings.json이 존재하는데 JSON 파싱이 안 되는 상태 — 이때 install하면 빈 {} 기반으로
     /// 덮어써 파손 파일을 클로버하므로 거부한다(15.1 가드).
-    static func settingsCorrupt() -> Bool {
-        FileManager.default.fileExists(atPath: PathConstants.claudeSettings) && readSettings() == nil
-    }
+    static func settingsCorrupt() -> Bool { SettingsFileIO.isCorrupt() }
 
     /// 설치: 스크립트 파일 기록(0755) + settings.json에 항목 추가. 이미 있으면 no-op.
     @discardableResult
@@ -296,21 +294,6 @@ enum HookRecipeManager {
         return false
     }
 
-    private static func readSettings() -> [String: Any]? {
-        guard let data = try? Data(contentsOf: URL(fileURLWithPath: PathConstants.claudeSettings)) else { return nil }
-        return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
-    }
-
-    private static func writeSettings(_ root: [String: Any]) -> String? {
-        guard let data = try? JSONSerialization.data(withJSONObject: root,
-                                                     options: [.prettyPrinted, .sortedKeys]) else {
-            return "settings.json 직렬화 실패"
-        }
-        do {
-            try data.write(to: URL(fileURLWithPath: PathConstants.claudeSettings), options: .atomic)
-            return nil
-        } catch {
-            return "settings.json 쓰기 실패: \(error.localizedDescription)"
-        }
-    }
+    private static func readSettings() -> [String: Any]? { SettingsFileIO.read() }
+    private static func writeSettings(_ root: [String: Any]) -> String? { SettingsFileIO.write(root) }
 }

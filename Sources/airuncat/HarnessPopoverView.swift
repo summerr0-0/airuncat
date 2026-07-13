@@ -15,6 +15,7 @@ struct HarnessPopoverView: View {
     @State private var settingUp = false
     @State private var recipesExpanded = false   // Phase 15 레시피 피커
     @State private var wizardShown = false       // Phase 16 세팅 마법사
+    @State private var templatesExpanded = false // Phase 17a rule 템플릿 피커
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -172,8 +173,23 @@ struct HarnessPopoverView: View {
             let globals = info.rules.filter { $0.scope == .global }
             let projects = info.rules.filter { $0.scope == .project }
 
-            sectionHeader("rules", count: info.rules.count,
-                          subtitle: globals.isEmpty ? nil : "글로벌 \(globals.count) + 프로젝트 \(projects.count)")
+            HStack(spacing: 4) {
+                sectionHeader("rules", count: info.rules.count,
+                              subtitle: globals.isEmpty ? nil : "글로벌 \(globals.count) + 프로젝트 \(projects.count)")
+                Spacer()
+                // Phase 17a: rule 템플릿 라이브러리 진입점 ("+ 새 Rule" 폼과 공존)
+                Button {
+                    withAnimation(.easeInOut(duration: 0.12)) { templatesExpanded.toggle() }
+                } label: {
+                    Text(templatesExpanded ? "닫기" : "+ 템플릿")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundColor(templatesExpanded ? .secondary : .accentColor)
+                }
+                .buttonStyle(.plain)
+                .padding(.trailing, 12)
+                .help("큐레이팅된 rule 템플릿에서 추가")
+            }
+            if templatesExpanded { ruleTemplatePicker }
 
             if info.rules.isEmpty {
                 HStack(spacing: 6) {
@@ -257,6 +273,57 @@ struct HarnessPopoverView: View {
             }
             if recipesExpanded { recipePicker }
         }
+    }
+
+    // MARK: - Rule template picker (Phase 17a)
+
+    private var ruleTemplatePicker: some View {
+        let types = ProjectTypeDetector.detect(cwd: info.projectPath)
+        let existingNames = Set(info.rules.filter { $0.scope == .project }
+            .map { (($0.path as NSString).lastPathComponent as NSString).deletingPathExtension })
+        return VStack(alignment: .leading, spacing: 4) {
+            ForEach(RuleTemplate.catalog) { template in
+                ruleTemplateRow(template, types: types,
+                                exists: existingNames.contains(template.id))
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 4)
+    }
+
+    private func ruleTemplateRow(_ template: RuleTemplate, types: [ProjectType], exists: Bool) -> some View {
+        let usable = template.applicable(to: types) && !exists
+        return HStack(alignment: .top, spacing: 6) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(template.title)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(usable ? .primary : .secondary)
+                Text(exists ? "이미 존재 (\(template.id).md)"
+                     : (!template.applicable(to: types) ? "이 프로젝트 타입엔 해당 없음"
+                        : String(template.body(for: types).prefix(90))))
+                    .font(.system(size: 8, design: .monospaced))
+                    .foregroundColor(.secondary.opacity(usable ? 0.9 : 0.6))
+                    .lineLimit(2)
+                    .help(template.body(for: types))
+            }
+            Spacer(minLength: 4)
+            Button("추가") { addRuleTemplate(template, types: types) }
+                .buttonStyle(.plain)
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundColor(usable ? .accentColor : .secondary.opacity(0.4))
+                .disabled(!usable)
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func addRuleTemplate(_ template: RuleTemplate, types: [ProjectType]) {
+        // 오류는 Phase 15와 동형으로 상단 errorBanner
+        if let err = RuleManager.create(name: template.id, scope: .project,
+                                        projectCwd: info.projectPath,
+                                        body: template.body(for: types)) {
+            errors.append((id: UUID(), message: err))
+        }
+        rescan()
     }
 
     // MARK: - Recipe picker (Phase 15)

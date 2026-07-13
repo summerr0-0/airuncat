@@ -4,7 +4,9 @@ enum RuleManager {
 
     // MARK: - Create
 
-    static func create(name: String, scope: RuleScope, projectCwd: String) -> String? {
+    /// body를 주면 그 내용으로 생성(템플릿 라이브러리, Phase 17a), nil이면 기존 placeholder.
+    static func create(name: String, scope: RuleScope, projectCwd: String,
+                       body: String? = nil) -> String? {
         let rulesDir: String
         switch scope {
         case .global:
@@ -28,9 +30,9 @@ enum RuleManager {
             return "이미 존재하는 Rule: \(name)"
         }
 
-        let template = "# \(name)\n\n여기에 AI에게 강제할 제약이나 동작을 기술한다.\n"
+        let content = body ?? "# \(name)\n\n여기에 AI에게 강제할 제약이나 동작을 기술한다.\n"
         do {
-            try template.write(toFile: filePath, atomically: true, encoding: .utf8)
+            try content.write(toFile: filePath, atomically: true, encoding: .utf8)
             return nil
         } catch {
             return "파일 생성 실패: \(error.localizedDescription)"

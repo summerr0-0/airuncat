@@ -46,6 +46,19 @@ struct AiruncatApp: App {
             print("after:  \(info.score.grade.rawValue) \(info.score.percent)%")
             exit(0)
         }
+        // Debug path: `airuncat --rule-template <dir> <id>` — Phase 17a 템플릿 추가 헤드리스 검증
+        if let idx = args.firstIndex(of: "--rule-template"), idx + 2 < args.count {
+            let dir = args[idx + 1], id = args[idx + 2]
+            guard let t = RuleTemplate.catalog.first(where: { $0.id == id }) else {
+                print("unknown template"); exit(1)
+            }
+            let types = ProjectTypeDetector.detect(cwd: dir)
+            guard t.applicable(to: types) else { print("해당 없음 (types: \(types.map(\.label)))"); exit(0) }
+            let err = RuleManager.create(name: t.id, scope: .project, projectCwd: dir,
+                                         body: t.body(for: types))
+            print(err ?? "added: .claude/rules/\(t.id).md")
+            exit(err == nil ? 0 : 1)
+        }
         // Debug path: `airuncat --statusline status|install|remove` (R3 검증용 CLI)
         if let idx = args.firstIndex(of: "--statusline") {
             let sub = (idx + 1 < args.count) ? args[idx + 1] : "status"

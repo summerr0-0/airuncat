@@ -46,6 +46,30 @@ struct AiruncatApp: App {
             print("after:  \(info.score.grade.rawValue) \(info.score.percent)%")
             exit(0)
         }
+        // Debug path: `airuncat --quality <dir>` — Phase 17b 진단 헤드리스 검증 (토큰 1회 소비!)
+        if let idx = args.firstIndex(of: "--quality"), idx + 1 < args.count {
+            let dir = args[idx + 1]
+            guard let input = QualityScanner.collectInput(projectPath: dir) else {
+                print("진단할 CLAUDE.md 없음"); exit(1)
+            }
+            let hash = QualityScanner.hash(of: input)
+            if let cached = QualityScanner.loadCache(projectPath: dir), cached.inputHash == hash {
+                print("cache hit: 품질 \(cached.score)/10 · ph \(cached.placeholders.count) · ct \(cached.contradictions.count) · vg \(cached.vague.count)")
+                exit(0)
+            }
+            print("실행 중… (claude -p --bare, haiku, 토큰 소비 1회)")
+            switch QualityScanner.runHeadless(input: input, hash: hash) {
+            case .success(let r):
+                QualityScanner.saveCache(projectPath: dir, report: r)
+                print("품질 \(r.score)/10")
+                print("placeholders: \(r.placeholders)")
+                print("contradictions: \(r.contradictions)")
+                print("vague: \(r.vague)")
+                exit(0)
+            case .failure(let msg):
+                print("실패: \(msg)"); exit(1)
+            }
+        }
         // Debug path: `airuncat --rule-template <dir> <id>` — Phase 17a 템플릿 추가 헤드리스 검증
         if let idx = args.firstIndex(of: "--rule-template"), idx + 2 < args.count {
             let dir = args[idx + 1], id = args[idx + 2]

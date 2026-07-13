@@ -104,7 +104,11 @@ struct SessionScanner {
                 }
                 if let info = parse(path: path, size: size, mtime: mtime) {
                     cache[path] = (mtime, info)
-                    result.append(info)
+                    // 17b 재귀 완화: airuncat 자신이 띄운 진단 세션(cwd=~/.airuncat)은 관제 대상 아님
+                    if info.cwd.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+                        != PathConstants.airuncatBase.trimmingCharacters(in: CharacterSet(charactersIn: "/")) {
+                        result.append(info)
+                    }
                 }
             }
         }

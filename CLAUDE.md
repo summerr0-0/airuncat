@@ -39,6 +39,7 @@ Sources/airuncat/
   HarnessWizardView.swift  세팅 마법사 (Phase 16): C 이하 프로젝트를 4단계(CLAUDE.md→rules→deny→레시피+켜기)로 F→B, --wizard-sim CLI 검증
   RuleManager.swift        rule 파일 create/delete (원자 쓰기, body 파라미터로 템플릿 본문 주입)
   RuleTemplate.swift       rule 템플릿 카탈로그 (Phase 17a): 6종(no-secrets 등), 타입 필터·BUILD_CMD 치환, Harness 팝오버 "+ 템플릿" 피커
+  QualityScanner.swift     LLM 내용 품질 진단 (Phase 17b): claude -p --bare(haiku)로 CLAUDE.md/rules 1회 진단, 수동 트리거·4KB캡·해시 캐시, 뷰 밖 @MainActor 상태
   HookRecipeManager.swift  글로벌 훅 레시피 설치/제거 (스크립트 ~/.claude/hooks/airuncat-*.sh + settings.json 원자 병합, 상태 ~/.airuncat/hook-state/), --hook-recipe CLI. 레시피 3종: 세션 텔레메트리/서브에이전트 트래커/rules 주입기
   ProjectHookRecipe.swift  프로젝트 훅 레시피 카탈로그 (Phase 15): 타입 감지(swift/node/python/rust/go) + build/format/lint/guard 5종, Harness 팝오버 "+ 레시피" 피커로 비활성 추가→검토 후 토글
   StatuslineManager.swift  Claude Code statusline 설치/제거 (C5: 기존 설정 보호) — stdin JSON을 세션별 캐시(±3% 안정화) 후 "모델·ctx%" 출력, nativeContext(sessionId) 조회. --statusline CLI
@@ -71,6 +72,7 @@ build.sh                   release 빌드 + .app 번들 조립 + 자체 서명
 | 사용량 자격증명 | macOS Keychain `Claude Code-credentials` (Claude Code OAuth 토큰; 만료 시 lazy 리프레시 병합 재기록) |
 | 훅 상태 | `~/.airuncat/hook-state/sessions/<id>/` (metrics.json, subagents.jsonl, injected-rules.json) |
 | statusline 캐시 | `~/.airuncat/hook-state/statusline/<sessionId>.json` (네이티브 ctx %·rate limits·모델) |
+| 품질 진단 캐시 | `~/.airuncat/quality-cache.json` (projectPath별 QualityReport, 입력 해시) |
 
 **스킬 수동 추가:** `~/.airuncat/skills/SKILL_[NAME].md` 생성 → 앱 C/G 배지 토글로 링크
 **프롬프트 수동 추가:** `~/.airuncat/prompts/<name>.md` 생성 → 새로고침

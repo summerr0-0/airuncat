@@ -149,7 +149,7 @@ struct StatsView: View {
         let maxCount = max(1, top.first?.count ?? 1)   // 0 나눗셈/NaN 방어
 
         return VStack(alignment: .leading, spacing: 4) {
-            Text("자주 쓴 스킬")
+            Text("자주 쓴 스킬·커맨드")
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundColor(.secondary)
 

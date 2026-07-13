@@ -151,30 +151,70 @@ enum StatsScanner {
         return nil
     }
 
+    /// 세션 파일 전체를 종료 없이 스캔(큰 파일 중간 스킬 누락 방지, mtime 캐시로 파일당 1회).
+    /// 두 경로를 집계한다:
+    /// 1. assistant의 `Skill` tool_use (프로그램적 스킬 호출)
+    /// 2. user 메시지의 `<command-name>/foo</command-name>` (사용자가 **타이핑한** 슬래시 커맨드)
+    ///    — 이게 없으면 "/specify 오늘 썼는데 안 뜬다"가 됨. 세션 제어 내장 커맨드는 제외.
     private static func readSkillsUsed(path: String) -> [String] {
-        // 스킬 호출은 세션 파일 어디에나 있을 수 있어 **전체**를 스캔한다(head/tail 512KB로는
-        // 큰 세션 중간의 스킬을 놓침). mtime 증분 캐시라 파일당 1회만 파싱되어 비용은 제한적.
         guard let fh = FileHandle(forReadingAtPath: path) else { return [] }
         defer { try? fh.close() }
         guard let data = try? fh.readToEnd() else { return [] }
 
         var skills: [String] = []
         for line in FileIOHelper.splitLines(data) {
-            guard line.contains("\"tool_use\""), line.contains("\"Skill\""),   // 빠른 사전 필터
-                  let json = FileIOHelper.jsonObject(line),
-                  (json["type"] as? String) == "assistant",
-                  let message = json["message"] as? [String: Any],
-                  let contentArr = message["content"] as? [[String: Any]] else { continue }
-            for block in contentArr
-                where (block["type"] as? String) == "tool_use"
-                   && (block["name"] as? String) == "Skill" {
-                if let input = block["input"] as? [String: Any],
-                   let skillName = input["skill"] as? String {
-                    skills.append(skillName)
+            let hasSkill = line.contains("\"Skill\"")
+            let hasCmd = line.contains("<command-name>")
+            guard hasSkill || hasCmd, let json = FileIOHelper.jsonObject(line) else { continue }
+            let type = json["type"] as? String
+
+            if hasSkill, type == "assistant",
+               let message = json["message"] as? [String: Any],
+               let contentArr = message["content"] as? [[String: Any]] {
+                for block in contentArr
+                    where (block["type"] as? String) == "tool_use"
+                       && (block["name"] as? String) == "Skill" {
+                    if let input = block["input"] as? [String: Any],
+                       let skillName = input["skill"] as? String { skills.append(skillName) }
+                }
+            } else if hasCmd, type == "user" {
+                for name in commandNames(inMessage: json["message"]) {
+                    if !builtinCommands.contains(name) { skills.append(name) }
                 }
             }
         }
         return skills
+    }
+
+    /// 세션 제어용 내장 커맨드 — "자주 쓴 스킬"에서 노이즈라 제외.
+    private static let builtinCommands: Set<String> = [
+        "clear", "model", "login", "logout", "help", "config", "resume", "compact",
+        "exit", "quit", "status", "cost", "init", "doctor", "memory", "vim",
+        "terminal-setup", "bug", "upgrade", "add-dir", "privacy-settings", "release-notes",
+    ]
+
+    /// user 메시지 텍스트에서 `<command-name>/foo</command-name>`의 foo(슬래시 제거)를 뽑는다.
+    private static func commandNames(inMessage message: Any?) -> [String] {
+        let text: String
+        if let s = message as? String { text = s }
+        else if let m = message as? [String: Any] {
+            if let s = m["content"] as? String { text = s }
+            else if let arr = m["content"] as? [[String: Any]] {
+                text = arr.compactMap { $0["text"] as? String }.joined(separator: " ")
+            } else { return [] }
+        } else { return [] }
+
+        guard text.contains("<command-name>") else { return [] }
+        var out: [String] = []
+        var rest = Substring(text)
+        while let open = rest.range(of: "<command-name>"),
+              let close = rest.range(of: "</command-name>", range: open.upperBound..<rest.endIndex) {
+            var name = String(rest[open.upperBound..<close.lowerBound]).trimmingCharacters(in: .whitespaces)
+            if name.hasPrefix("/") { name.removeFirst() }
+            if !name.isEmpty, !name.contains("/"), !name.contains(" ") { out.append(name) }  // 경로 오탐 배제
+            rest = rest[close.upperBound...]
+        }
+        return out
     }
 
     // MARK: - Cache IO

@@ -48,7 +48,7 @@ Sources/airuncat/
   ApplicationController.swift  @MainActor ObservableObject, tap CFMachPort 생명주기 관리
   PaletteViewModel.swift   스킬+프롬프트 통합 검색·필터·히스토리 (palette-history.json)
   QuickPalette.swift       NSPanel 플로팅 팔레트 창 + PaletteView + PaletteRow (SwiftUI)
-  StatsScanner.swift       ~/.claude/projects/ JSONL 집계 (mtime 증분 캐시, tool_use Skill은 전체 파일 스캔 — 큰 파일 중간 스킬 누락 방지)
+  StatsScanner.swift       ~/.claude/projects/ JSONL 집계 (mtime 증분 캐시; 전체 파일 스캔; Skill tool_use + 타이핑한 <command-name> 슬래시 커맨드 집계, 내장 커맨드 제외)
   StatsStore.swift         @MainActor ObservableObject, period 필터, heatmap/topSkills 계산
   StatsView.swift          Stats 탭 UI (기간 피커, 히트맵 7×24, 스킬 바 차트)
   UsageAPIClient.swift     Keychain OAuth 토큰으로 /api/oauth/usage 호출 (5h/주간 실제 %·resets_at) + 만료 시 lazy 토큰 리프레시(레이스 방어, Keychain 병합 재기록)

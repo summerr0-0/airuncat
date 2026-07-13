@@ -16,6 +16,7 @@ struct HarnessPopoverView: View {
     @State private var recipesExpanded = false   // Phase 15 레시피 피커
     @State private var wizardShown = false       // Phase 16 세팅 마법사
     @State private var templatesExpanded = false // Phase 17a rule 템플릿 피커
+    @ObservedObject private var quality = QualityScanner.shared   // Phase 17b (뷰 밖 상태)
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -23,6 +24,7 @@ struct HarnessPopoverView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     scoreSection
+                    qualityRow   // Phase 17b: LLM 내용 품질 진단 (수동 1회, Score 미반영)
                     if wizardShown {
                         Divider().padding(.vertical, 2)
                         HarnessWizardView(info: $info, onDone: { wizardShown = false })
@@ -273,6 +275,76 @@ struct HarnessPopoverView: View {
             }
             if recipesExpanded { recipePicker }
         }
+    }
+
+    // MARK: - LLM 품질 진단 (Phase 17b)
+
+    @ViewBuilder
+    private var qualityRow: some View {
+        let phase = quality.phase(for: info.projectPath)
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 6) {
+                Text("LLM 진단")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundColor(.secondary)
+                Spacer()
+                switch phase {
+                case .idle:
+                    Button("진단 실행 (토큰 사용)") {
+                        quality.diagnose(projectPath: info.projectPath)
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundColor(AiruncatDesign.aiColor(.claude))
+                case .running:
+                    HStack(spacing: 4) {
+                        ProgressView().controlSize(.small)
+                        Text("진단 중… (최대 60s)")
+                            .font(.system(size: 9)).foregroundColor(.secondary)
+                    }
+                case .done(_, let cached):
+                    if cached {
+                        Text("이전 결과")
+                            .font(.system(size: 8))
+                            .padding(.horizontal, 4).padding(.vertical, 1)
+                            .background(Color.primary.opacity(0.07))
+                            .clipShape(Capsule())
+                            .foregroundColor(.secondary)
+                    }
+                    Button("다시 진단") {
+                        quality.diagnose(projectPath: info.projectPath, force: true)
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 9)).foregroundColor(.secondary)
+                case .failed:
+                    Button("재시도") {
+                        quality.diagnose(projectPath: info.projectPath, force: true)
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 9)).foregroundColor(.orange)
+                }
+            }
+            switch phase {
+            case .done(let r, _):
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("품질 \(r.score)/10 · 플레이스홀더 \(r.placeholders.count) · 모순 \(r.contradictions.count) · 모호 \(r.vague.count)")
+                        .font(.system(size: 10, weight: .medium))
+                    ForEach(Array((r.placeholders + r.contradictions + r.vague).prefix(6).enumerated()),
+                            id: \.offset) { _, item in
+                        Text("· \(item)")
+                            .font(.system(size: 9))
+                            .foregroundColor(.secondary)
+                            .lineLimit(2)
+                    }
+                }
+            case .failed(let msg):
+                Text(msg).font(.system(size: 9)).foregroundColor(.red).lineLimit(2)
+            default:
+                EmptyView()
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 4)
     }
 
     // MARK: - Rule template picker (Phase 17a)

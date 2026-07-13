@@ -61,10 +61,53 @@ struct ProjectHookRecipe: Identifiable {
         "INPUT=$(cat); V=$(printf '%s' \"$INPUT\" | /usr/bin/python3 -c 'import json,sys; print((json.load(sys.stdin).get(\"tool_input\") or {}).get(\"\(field)\") or \"\")' 2>/dev/null)"
     }
 
-    /// PreToolUse 차단 응답(JSON, exit 0) — 공식 프로토콜(permissionDecision: deny).
-    private static func deny(_ reason: String) -> String {
-        "printf '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"\(reason): %s\"}}' \"$V\""
-    }
+    /// 민감파일 가드 스크립트(python): file_path 정규식 매칭 → json.dumps로 **유효한** deny JSON.
+    /// printf %s 방식은 경로에 " 가 있으면 JSON이 깨져 deny가 조용히 실패(C2) → python 이스케이프.
+    private static let sensitiveGuard = """
+    INPUT=$(cat)
+    HOOK_INPUT="$INPUT" /usr/bin/python3 - <<'PY'
+    import json, os, sys, re
+    try:
+        d = json.loads(os.environ.get("HOOK_INPUT") or "")
+    except Exception:
+        sys.exit(0)
+    fp = (d.get("tool_input") or {}).get("file_path") or ""
+    if re.search(r"(\\.env(\\.|$)|secret|credential|id_rsa|\\.pem$)", fp, re.I):
+        print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse",
+              "permissionDecision": "deny",
+              "permissionDecisionReason": "민감 파일 차단(트립와이어): " + fp}}, ensure_ascii=False))
+    PY
+    exit 0
+    """
+
+    /// 위험 bash 가드(python): 공백 정규화 후 rm의 recursive+force+위험대상 토큰 매칭
+    /// (rm -fr / · rm --recursive --force / · 이중공백 등 커버). 베스트에포트 트립와이어.
+    private static let dangerousBashGuard = """
+    INPUT=$(cat)
+    HOOK_INPUT="$INPUT" /usr/bin/python3 - <<'PY'
+    import json, os, sys, re
+    try:
+        d = json.loads(os.environ.get("HOOK_INPUT") or "")
+    except Exception:
+        sys.exit(0)
+    cmd = (d.get("tool_input") or {}).get("command") or ""
+    c = re.sub(r"\\s+", " ", cmd)
+    def rm_danger(s):
+        if not re.search(r"(^|[;&|]\\s*)rm\\b", s): return False
+        r = bool(re.search(r"-[a-z]*r|--recursive", s))
+        f = bool(re.search(r"-[a-z]*f|--force", s))
+        t = bool(re.search(r"\\s(/|~|\\$HOME)(/| |$)", s))
+        return r and f and t
+    danger = (rm_danger(c) or "mkfs" in c or re.search(r">\\s*/dev/sd", c)
+              or re.search(r"chmod\\s+-R\\s+777\\s+/", c)
+              or re.search(r"\\bfind\\s+/\\s.*-delete", c))
+    if danger:
+        print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse",
+              "permissionDecision": "deny",
+              "permissionDecisionReason": "위험 명령 차단(트립와이어): " + cmd}}, ensure_ascii=False))
+    PY
+    exit 0
+    """
 
     // MARK: 카탈로그
 
@@ -111,22 +154,18 @@ struct ProjectHookRecipe: Identifiable {
         ProjectHookRecipe(
             id: "block-sensitive",
             title: "민감파일 편집 차단",
-            description: ".env·시크릿·키 파일 편집을 차단 (permissionDecision: deny)",
+            description: ".env·시크릿·키 파일 편집 트립와이어(베스트에포트, 완전한 보안 경계 아님)",
             category: .guardRule,
             event: "PreToolUse", matcher: "Edit|Write",
-            commands: [
-                .generic: "\(extract("file_path")); case \"$V\" in *.env|*.env.*|*secret*|*credential*|*id_rsa*|*.pem) \(deny("민감 파일 차단"));; esac"
-            ]
+            commands: [.generic: sensitiveGuard]
         ),
         ProjectHookRecipe(
             id: "block-dangerous-bash",
             title: "위험 bash 차단",
-            description: "rm -rf / 등 파괴적 명령을 차단 (permissionDecision: deny)",
+            description: "rm -rf 등 파괴적 명령 트립와이어(베스트에포트, 우회 가능 — 보안 경계 아님)",
             category: .guardRule,
             event: "PreToolUse", matcher: "Bash",
-            commands: [
-                .generic: "\(extract("command")); case \"$V\" in *'rm -rf /'*|*'rm -rf ~'*|*'rm -rf $HOME'*|*'mkfs'*|*'> /dev/sd'*|*'chmod -R 777 /'*) \(deny("위험 명령 차단"));; esac"
-            ]
+            commands: [.generic: dangerousBashGuard]
         ),
     ]
 }

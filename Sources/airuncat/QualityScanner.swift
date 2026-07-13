@@ -66,27 +66,36 @@ final class QualityScanner: ObservableObject {
 
     struct Input { let text: String; let truncated: Bool }
 
+    /// 전체(CLAUDE.md + rules)를 이어붙인 뒤 **합산 바이트 캡**을 적용 — 비용 헌법(4KB)은
+    /// 파일별이 아니라 총량 보장이어야 함(M3). 한글은 byte로 잘라 실제 전송량을 통제.
     nonisolated static func collectInput(projectPath: String) -> Input? {
         let fm = FileManager.default
         let root = (projectPath as NSString).appendingPathComponent("CLAUDE.md")
         let sub = (projectPath as NSString).appendingPathComponent(".claude/CLAUDE.md")
         let mdPath = fm.fileExists(atPath: root) ? root : (fm.fileExists(atPath: sub) ? sub : nil)
-        guard let mdPath, var md = try? String(contentsOfFile: mdPath, encoding: .utf8) else { return nil }
+        guard let mdPath, let md = try? String(contentsOfFile: mdPath, encoding: .utf8) else { return nil }
 
-        var truncated = false
-        if md.utf8.count > inputCap { md = String(md.prefix(inputCap)); truncated = true }
-
-        var rulesText = ""
+        var full = "--- CLAUDE.md ---\n\(md)\n--- rules ---"
         let rulesDir = (projectPath as NSString).appendingPathComponent(".claude/rules")
         if let files = try? fm.contentsOfDirectory(atPath: rulesDir) {
             for f in files.sorted() where f.hasSuffix(".md") {
                 let p = (rulesDir as NSString).appendingPathComponent(f)
-                guard var body = try? String(contentsOfFile: p, encoding: .utf8) else { continue }
-                if body.utf8.count > inputCap { body = String(body.prefix(inputCap)); truncated = true }
-                rulesText += "\n### \(f)\n\(body)\n"
+                if let body = try? String(contentsOfFile: p, encoding: .utf8) {
+                    full += "\n### \(f)\n\(body)\n"
+                }
             }
         }
-        return Input(text: "--- CLAUDE.md ---\n\(md)\n--- rules ---\(rulesText)", truncated: truncated)
+        // 합산 바이트 캡(UTF-8 경계 보존).
+        var bytes = Array(full.utf8)
+        var truncated = false
+        if bytes.count > inputCap {
+            bytes = Array(bytes.prefix(inputCap))
+            // 잘린 끝의 불완속 멀티바이트 시퀀스 제거
+            while !bytes.isEmpty, String(bytes: bytes, encoding: .utf8) == nil { bytes.removeLast() }
+            truncated = true
+        }
+        let text = String(bytes: bytes, encoding: .utf8) ?? full
+        return Input(text: text, truncated: truncated)
     }
 
     nonisolated static func hash(of input: Input) -> String {

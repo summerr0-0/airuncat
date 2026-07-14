@@ -25,8 +25,8 @@ enum HookRecipeManager {
 
     // MARK: Registry
 
-    /// R6a 세션 텔레메트리 / R6b 서브에이전트 트래커 / R6c rules 주입.
-    static let recipes: [HookRecipe] = [sessionTelemetry, subagentTracker, rulesInjector]
+    /// R6a 세션 텔레메트리 / R6b 서브에이전트 트래커 / R6c rules 주입 / 선제 정리 알림.
+    static let recipes: [HookRecipe] = [sessionTelemetry, subagentTracker, rulesInjector, preemptiveCompaction]
 
     // MARK: R6a — 세션 텔레메트리 (SessionEnd)
 
@@ -211,6 +211,113 @@ enum HookRecipeManager {
             print(json.dumps({"continue": True, "systemMessage": "\\n\\n".join(msgs)[:8000]}))
         else:
             print(json.dumps({"continue": True}))
+        PY
+        exit 0
+        """
+    )
+
+    // MARK: 선제 정리 알림 (PostToolUse) — spec: specs/preemptive-compaction
+
+    static let preemptiveCompaction = HookRecipe(
+        id: "preemptive-compaction",
+        name: "선제 정리 알림",
+        description: "세션 컨텍스트가 80%를 넘으면 Claude에 /compact 권장 넛지 주입 (자동 실행 아님, 20분 쿨다운·3회 상한)",
+        event: "PostToolUse",
+        matcher: nil,
+        timeout: 5,
+        script: """
+        #!/bin/sh
+        # airuncat hook recipe: preemptive-compaction (PostToolUse)
+        # 컨텍스트 사용률 ≥80%면 additionalContext로 /compact 권장 넛지. 넛지만(자동 실행 없음).
+        # 소스: statusline 캐시 우선 → transcript 최신 usage 폴백. 쿨다운 20분·세션 3회.
+        INPUT=$(cat)
+        HOOK_INPUT="$INPUT" /usr/bin/python3 - <<'PY'
+        import json, os, sys, time
+        THRESHOLD = 80
+        COOLDOWN = 20 * 60
+        MAX_NUDGES = 3
+        try:
+            d = json.loads(os.environ.get("HOOK_INPUT") or "")
+        except Exception:
+            sys.exit(0)
+        sid = d.get("session_id") or ""
+        if not sid:
+            sys.exit(0)
+
+        def pct_from_statusline():
+            p = os.path.expanduser("~/.airuncat/hook-state/statusline/%s.json" % sid)
+            try:
+                cw = (json.load(open(p)).get("context_window") or {})
+                up = cw.get("used_percentage")
+                return float(up) if isinstance(up, (int, float)) else None
+            except Exception:
+                return None
+
+        def pct_from_transcript():
+            tp = os.path.expanduser(d.get("transcript_path", "") or "")
+            if not tp or not os.path.exists(tp):
+                return None
+            try:
+                size = os.stat(tp).st_size
+                with open(tp, "rb") as f:
+                    if size > 262144:
+                        f.seek(size - 262144)
+                    tail = f.read().decode("utf-8", "ignore")
+                usage = None
+                for line in tail.splitlines():
+                    if '"usage"' not in line:
+                        continue
+                    try:
+                        o = json.loads(line)
+                    except Exception:
+                        continue
+                    if o.get("type") != "assistant":
+                        continue
+                    u = (o.get("message") or {}).get("usage")
+                    if u:
+                        usage = u
+                if not usage:
+                    return None
+                occ = (usage.get("input_tokens", 0) + usage.get("cache_read_input_tokens", 0)
+                       + usage.get("cache_creation_input_tokens", 0))
+                window = 1000000 if occ > 200000 else 200000
+                return occ * 100.0 / window
+            except Exception:
+                return None
+
+        pct = pct_from_statusline()
+        if pct is None:
+            pct = pct_from_transcript()
+        if pct is None or pct < THRESHOLD:
+            sys.exit(0)   # 소스 없음/임계 미만 → 조용히 종료(C2)
+
+        # 쿨다운·상한 검사
+        state_dir = os.path.expanduser("~/.airuncat/hook-state/sessions/%s" % sid)
+        os.makedirs(state_dir, exist_ok=True)
+        state_path = os.path.join(state_dir, "compaction.json")
+        try:
+            st = json.load(open(state_path))
+        except Exception:
+            st = {"lastNudgeAt": 0, "count": 0}
+        now = time.time()
+        if st.get("count", 0) >= MAX_NUDGES:
+            sys.exit(0)
+        if now - st.get("lastNudgeAt", 0) < COOLDOWN:
+            sys.exit(0)
+
+        st["lastNudgeAt"] = now
+        st["count"] = st.get("count", 0) + 1
+        tmp = state_path + ".tmp"
+        try:
+            json.dump(st, open(tmp, "w"))
+            os.replace(tmp, state_path)
+        except Exception:
+            pass
+
+        msg = ("컨텍스트가 %d%% 사용됨 — 대화가 자연스럽게 끊기는 지점에서 /compact 실행을 권장합니다. "
+               "(즉시 필요 없으면 계속 진행해도 됩니다.)") % int(round(pct))
+        print(json.dumps({"hookSpecificOutput": {
+            "hookEventName": "PostToolUse", "additionalContext": msg}}, ensure_ascii=False))
         PY
         exit 0
         """

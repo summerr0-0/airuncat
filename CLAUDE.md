@@ -41,7 +41,7 @@ Sources/airuncat/
   RuleManager.swift        rule 파일 create/delete (원자 쓰기, body 파라미터로 템플릿 본문 주입)
   RuleTemplate.swift       rule 템플릿 카탈로그 (Phase 17a): 6종(no-secrets 등), 타입 필터·BUILD_CMD 치환, Harness 팝오버 "+ 템플릿" 피커
   QualityScanner.swift     LLM 내용 품질 진단 (Phase 17b): claude -p --bare(haiku)로 CLAUDE.md/rules 1회 진단, 수동 트리거·4KB캡·해시 캐시, 뷰 밖 @MainActor 상태
-  HookRecipeManager.swift  글로벌 훅 레시피 설치/제거 (스크립트 ~/.claude/hooks/airuncat-*.sh + settings.json 원자 병합, 상태 ~/.airuncat/hook-state/), --hook-recipe CLI. 레시피 3종: 세션 텔레메트리/서브에이전트 트래커/rules 주입기
+  HookRecipeManager.swift  글로벌 훅 레시피 설치/제거 (스크립트 ~/.claude/hooks/airuncat-*.sh + settings.json 원자 병합, 상태 ~/.airuncat/hook-state/), --hook-recipe CLI. 레시피 4종: 세션 텔레메트리/서브에이전트 트래커/rules 주입기/선제 정리 알림(80% 넘으면 /compact 넛지)
   ProjectHookRecipe.swift  프로젝트 훅 레시피 카탈로그 (Phase 15): 타입 감지(swift/node/python/rust/go) + build/format/lint/guard 5종, Harness 팝오버 "+ 레시피" 피커로 비활성 추가→검토 후 토글
   StatuslineManager.swift  Claude Code statusline 설치/제거 (C5: 기존 설정 보호) — stdin JSON을 세션별 캐시(±3% 안정화) 후 "모델·ctx%" 출력, nativeContext(sessionId) 조회. --statusline CLI
   GlobalShortcut.swift     CGEvent tap ⌥Space 글로벌 단축키 등록·해제 (HandlerBox, CFMachPort)

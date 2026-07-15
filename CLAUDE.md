@@ -90,7 +90,7 @@ build.sh                   release 빌드 + .app 번들 조립 + 자체 서명
 |---------|-------------|
 | `/run-clawde` | build.sh 후 앱 재시작 |
 | `/render-cat` | 고양이 프레임 PNG 추출 |
-| `/gemini-review` | Gemini 교차검토 (워크플로우 2·6단계) |
+| `/gemini-review` | 교차검토 — Antigravity CLI `agy -p` 사용, 구 gemini CLI는 지원종료 (워크플로우 2·6단계) |
 
 ## Hooks
 

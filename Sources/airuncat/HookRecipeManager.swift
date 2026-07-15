@@ -25,8 +25,12 @@ enum HookRecipeManager {
 
     // MARK: Registry
 
-    /// R6a 세션 텔레메트리 / R6b 서브에이전트 트래커 / R6c rules 주입 / 선제 정리 알림.
-    static let recipes: [HookRecipe] = [sessionTelemetry, subagentTracker, rulesInjector, preemptiveCompaction]
+    /// R6a 세션 텔레메트리 / R6b 서브에이전트 트래커 / R6c rules 주입 / 선제 정리 알림
+    /// / 전역 위험 명령 가드 / 완료 검증 넛지 (OMC pre-tool-enforcer·verify-deliverables 대응).
+    static let recipes: [HookRecipe] = [
+        sessionTelemetry, subagentTracker, rulesInjector, preemptiveCompaction,
+        globalBashGuard, completionVerifier,
+    ]
 
     // MARK: R6a — 세션 텔레메트리 (SessionEnd)
 
@@ -318,6 +322,155 @@ enum HookRecipeManager {
                "(즉시 필요 없으면 계속 진행해도 됩니다.)") % int(round(pct))
         print(json.dumps({"hookSpecificOutput": {
             "hookEventName": "PostToolUse", "additionalContext": msg}}, ensure_ascii=False))
+        PY
+        exit 0
+        """
+    )
+
+    // MARK: 전역 위험 명령 가드 (PreToolUse: Bash)
+
+    static let globalBashGuard = HookRecipe(
+        id: "global-bash-guard",
+        name: "전역 위험 명령 가드",
+        description: "모든 프로젝트에서 파괴적 명령(rm -rf /·~, mkfs, dd→디스크, main 강제 푸시 등) 차단 — 베스트에포트 트립와이어(보안 경계 아님)",
+        event: "PreToolUse",
+        matcher: "Bash",
+        timeout: 5,
+        script: """
+        #!/bin/sh
+        # airuncat hook recipe: global-bash-guard (PreToolUse: Bash)
+        # 파괴적 명령 트립와이어 — 프로젝트 무관 전역. 우회 가능성은 있음(보안 경계 아님).
+        INPUT=$(cat)
+        HOOK_INPUT="$INPUT" /usr/bin/python3 - <<'PY'
+        import json, os, sys, re
+        try:
+            d = json.loads(os.environ.get("HOOK_INPUT") or "")
+        except Exception:
+            sys.exit(0)
+        cmd = (d.get("tool_input") or {}).get("command") or ""
+        c = re.sub(r"\\s+", " ", cmd)
+        def rm_danger(s):
+            # rm이 -r·-f를 갖고 루트/홈 자체를 겨냥할 때만 (하위 경로 rm -rf는 정상 작업)
+            if not re.search(r"(^|[;&|]\\s*)(sudo\\s+)?rm\\b", s): return False
+            r = bool(re.search(r"-[a-z]*r|--recursive", s))
+            f = bool(re.search(r"-[a-z]*f|--force", s))
+            t = bool(re.search(r"\\s(/|/\\*|~|~/|\\$HOME/?)( |$)", s))
+            return r and f and t
+        force_push_main = bool(re.search(
+            r"git\\s+push\\b(?=[^;&|]*(--force(?!-with-lease)|\\s-f\\b))[^;&|]*\\s(main|master)\\b", c))
+        danger = (rm_danger(c) or force_push_main or "mkfs" in c
+                  or re.search(r"\\bdd\\b[^;&|]*of=[\\"']?/dev/(r?disk|sd)", c)
+                  or re.search(r"(>|\\btee\\s+(-a\\s+)?)\\s*[\\"']?/dev/(r?disk|sd)", c)
+                  or re.search(r"chmod\\s+-R\\s+777\\s+/( |$)", c)
+                  or re.search(r"\\bfind\\s+/\\s.*-delete", c)
+                  or ":(){" in c.replace(" ", ""))
+        if danger:
+            print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse",
+                  "permissionDecision": "deny",
+                  "permissionDecisionReason": "전역 가드: 파괴적 명령 차단(트립와이어) — " + cmd[:200]}},
+                  ensure_ascii=False))
+        PY
+        exit 0
+        """
+    )
+
+    // MARK: 완료 검증 넛지 (Stop)
+
+    static let completionVerifier = HookRecipe(
+        id: "completion-verifier",
+        name: "완료 검증 넛지",
+        description: "턴 종료 시 코드 수정은 있는데 이후 빌드/테스트 흔적이 없으면 한 번 되물음 (문서 수정만이면 통과, 세션 2회 상한)",
+        event: "Stop",
+        matcher: nil,
+        timeout: 10,
+        script: """
+        #!/bin/sh
+        # airuncat hook recipe: completion-verifier (Stop)
+        # 마지막 유저 턴 이후 코드 편집이 있는데 검증 명령이 안 보이면 decision:block으로 되묻는다.
+        # stop_hook_active면 무조건 통과(루프 방지). 세션당 2회 상한.
+        INPUT=$(cat)
+        HOOK_INPUT="$INPUT" /usr/bin/python3 - <<'PY'
+        import json, os, sys
+        MAX_NUDGES = 2
+        VERIFY_HINTS = ("swift build", "swift test", "build.sh", "npm test", "npm run build",
+                        "npx tsc", "tsc ", "vitest", "jest", "pytest", "cargo build", "cargo test",
+                        "go build", "go test", "make", "gradle", "mvn ", "xcodebuild", "ruff", "mypy")
+        DOC_EXTS = (".md", ".txt", ".rst", ".json", ".yml", ".yaml", ".toml", ".plist")
+        try:
+            d = json.loads(os.environ.get("HOOK_INPUT") or "")
+        except Exception:
+            sys.exit(0)
+        if d.get("stop_hook_active"):
+            sys.exit(0)
+        sid = d.get("session_id") or ""
+        tp = os.path.expanduser(d.get("transcript_path", "") or "")
+        if not sid or not tp or not os.path.exists(tp):
+            sys.exit(0)
+
+        state_dir = os.path.expanduser("~/.airuncat/hook-state/sessions/%s" % sid)
+        state_path = os.path.join(state_dir, "verifier.json")
+        try:
+            st = json.load(open(state_path))
+        except Exception:
+            st = {"count": 0}
+        if st.get("count", 0) >= MAX_NUDGES:
+            sys.exit(0)
+
+        # transcript tail에서 마지막 실제 유저 메시지 이후의 편집/검증 흔적 수집
+        size = os.stat(tp).st_size
+        with open(tp, "rb") as f:
+            if size > 524288:
+                f.seek(size - 524288)
+            tail = f.read().decode("utf-8", "ignore")
+        events = []   # ("edit", path) | ("bash", command)
+        for line in tail.splitlines():
+            if '"type":"user"' in line and '"tool_use_id"' not in line:
+                events.append(("user", ""))
+                continue
+            if '"type":"assistant"' not in line or '"tool_use"' not in line:
+                continue
+            try:
+                o = json.loads(line)
+            except Exception:
+                continue
+            for b in ((o.get("message") or {}).get("content") or []):
+                if not isinstance(b, dict) or b.get("type") != "tool_use":
+                    continue
+                name = b.get("name") or ""
+                inp = b.get("input") or {}
+                if name in ("Edit", "Write", "NotebookEdit"):
+                    events.append(("edit", str(inp.get("file_path") or "")))
+                elif name == "Bash":
+                    events.append(("bash", str(inp.get("command") or "")))
+        # 마지막 유저 메시지 이후만. tail 잘림으로 유저 턴 경계를 못 찾으면 보수적으로 통과
+        # (경계 없이 판단하면 이전 턴 이벤트가 섞여 오탐/미탐 둘 다 가능 — agy 리뷰 #3).
+        last_user = max((i for i, e in enumerate(events) if e[0] == "user"), default=-1)
+        if last_user < 0:
+            sys.exit(0)
+        turn = events[last_user + 1:]
+        edits = [p for k, p in turn if k == "edit"]
+        code_edits = [p for p in edits if p and not p.lower().endswith(DOC_EXTS)]
+        if not code_edits:
+            sys.exit(0)
+        last_edit = max(i for i, e in enumerate(turn) if e[0] == "edit" and e[1] in code_edits)
+        verified = any(k == "bash" and any(h in cmd for h in VERIFY_HINTS)
+                       for k, cmd in turn[last_edit + 1:])
+        if verified:
+            sys.exit(0)
+
+        st["count"] = st.get("count", 0) + 1
+        try:
+            os.makedirs(state_dir, exist_ok=True)
+            tmp = state_path + ".tmp"
+            json.dump(st, open(tmp, "w"))
+            os.replace(tmp, state_path)
+        except Exception:
+            pass
+        files = ", ".join(sorted({os.path.basename(p) for p in code_edits})[:5])
+        print(json.dumps({"decision": "block",
+              "reason": ("코드 파일(%s)을 수정했지만 이후 빌드/테스트 실행이 transcript에 안 보입니다. "
+                         "검증을 돌리고 종료하세요. 훅 자동 빌드 등으로 이미 검증됐다면 그 근거를 "
+                         "한 줄 남기고 종료하면 됩니다.") % files}, ensure_ascii=False))
         PY
         exit 0
         """

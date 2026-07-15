@@ -25,7 +25,7 @@ Sources/airuncat/
   MCPManager.swift         toggle/create/delete (atomic JSON write, settings.local.json)
   SettingsFileIO.swift     ~/.claude/settings.json 공용 read/write/isCorrupt (원자 쓰기 — HookRecipe/Statusline 매니저 공유)
   MCPView.swift            MCP 탭 UI (토글/생성/삭제, UUID 에러 배너)
-  GlobalRecipesView.swift  Global 탭 UI (Phase 15.1): 글로벌 레시피 4종(훅 3 + statusline) 설치/제거 토글, 스크립트 인앱 미리보기, foreign statusline 보호
+  GlobalRecipesView.swift  Global 탭 UI (Phase 15.1): 글로벌 훅 레시피 + statusline 설치/제거 토글, 스크립트 인앱 미리보기, foreign statusline 보호
   HookStateReader.swift    hook-state 읽기 (Phase 15.2): metrics.json(duration·도구 수 → Recently Closed 캡션), subagents.jsonl(카운트 → 행 확장)
   SkillManager.swift       구 store(~/.airuncat/skills) → ~/.claude/skills 1회 마이그레이션
   SkillScanner.swift       ~/.claude/skills/<n>/SKILL.md(원본·글로벌, Gemini 복제 상태 계산) + 여러 프로젝트 <cwd>/.claude/{commands,skills}(프로젝트별 group) 스캔, 고아=깨진 symlink만
@@ -41,7 +41,7 @@ Sources/airuncat/
   RuleManager.swift        rule 파일 create/delete (원자 쓰기, body 파라미터로 템플릿 본문 주입)
   RuleTemplate.swift       rule 템플릿 카탈로그 (Phase 17a): 6종(no-secrets 등), 타입 필터·BUILD_CMD 치환, Harness 팝오버 "+ 템플릿" 피커
   QualityScanner.swift     LLM 내용 품질 진단 (Phase 17b): claude -p --bare(haiku)로 CLAUDE.md/rules 1회 진단, 수동 트리거·4KB캡·해시 캐시, 뷰 밖 @MainActor 상태
-  HookRecipeManager.swift  글로벌 훅 레시피 설치/제거 (스크립트 ~/.claude/hooks/airuncat-*.sh + settings.json 원자 병합, 상태 ~/.airuncat/hook-state/), --hook-recipe CLI. 레시피 4종: 세션 텔레메트리/서브에이전트 트래커/rules 주입기/선제 정리 알림(80% 넘으면 /compact 넛지)
+  HookRecipeManager.swift  글로벌 훅 레시피 설치/제거 (스크립트 ~/.claude/hooks/airuncat-*.sh + settings.json 원자 병합, 상태 ~/.airuncat/hook-state/), --hook-recipe CLI. 레시피 6종: 세션 텔레메트리/서브에이전트 트래커/rules 주입기/선제 정리 알림(80% /compact 넛지)/전역 위험 명령 가드(파괴적 bash deny 트립와이어)/완료 검증 넛지(코드 수정 후 빌드·테스트 흔적 없으면 Stop에서 되물음)
   ProjectHookRecipe.swift  프로젝트 훅 레시피 카탈로그 (Phase 15): 타입 감지(swift/node/python/rust/go) + build/format/lint/guard 5종, Harness 팝오버 "+ 레시피" 피커로 비활성 추가→검토 후 토글
   StatuslineManager.swift  Claude Code statusline 설치/제거 (C5: 기존 설정 보호) — stdin JSON을 세션별 캐시(±3% 안정화) 후 "모델·ctx%" 출력, nativeContext(sessionId) 조회. --statusline CLI
   GlobalShortcut.swift     CGEvent tap ⌥Space 글로벌 단축키 등록·해제 (HandlerBox, CFMachPort)

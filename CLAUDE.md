@@ -27,10 +27,10 @@ Sources/airuncat/
   MCPView.swift            MCP 탭 UI (토글/생성/삭제, UUID 에러 배너)
   GlobalRecipesView.swift  Global 탭 UI (Phase 15.1): 글로벌 레시피 4종(훅 3 + statusline) 설치/제거 토글, 스크립트 인앱 미리보기, foreign statusline 보호
   HookStateReader.swift    hook-state 읽기 (Phase 15.2): metrics.json(duration·도구 수 → Recently Closed 캡션), subagents.jsonl(카운트 → 행 확장)
-  SkillManager.swift       skillsDir 상수 + Obsidian 마이그레이션
-  SkillScanner.swift       ~/.airuncat/skills(글로벌) + 여러 프로젝트 <cwd>/.claude/{commands,skills}(프로젝트별 group) + ~/.claude/skills(네이티브, 출처별 group) 스캔
-  SkillToggler.swift       symlink create/remove, createSkill, deleteSkill
-  SkillsView.swift         Skills 탭 UI (토글/수리/추가/삭제, 스코프별 접이식 섹션: 글로벌/프로젝트·폴더별/네이티브·출처별)
+  SkillManager.swift       구 store(~/.airuncat/skills) → ~/.claude/skills 1회 마이그레이션
+  SkillScanner.swift       ~/.claude/skills/<n>/SKILL.md(원본·글로벌, Gemini 복제 상태 계산) + 여러 프로젝트 <cwd>/.claude/{commands,skills}(프로젝트별 group) 스캔, 고아=깨진 symlink만
+  SkillToggler.swift       Gemini 복제 symlink on/off, 네이티브 스킬 생성/삭제 (Claude는 자동 인식 — 관리 없음)
+  SkillsView.swift         Skills 탭 UI (G 토글/수리/추가/삭제, 접이식 섹션: 글로벌·출처별/프로젝트·폴더별)
   PromptScanner.swift      ~/.airuncat/prompts/*.md 파싱
   PromptManager.swift      migrate/create/delete/togglePin
   PromptLibraryView.swift  Prompts 탭 UI (핀/카테고리/검색/추가/삭제)
@@ -61,9 +61,8 @@ build.sh                   release 빌드 + .app 번들 조립 + 자체 서명
 
 | 종류 | 경로 |
 |------|------|
-| 스킬 원본 | `~/.airuncat/skills/SKILL_*.md` |
-| Claude 링크 | `~/.claude/commands/<name>.md` (symlink) |
-| Gemini 링크 | `~/.gemini/commands/<name>.toml` (symlink) |
+| 스킬 원본 | `~/.claude/skills/<name>/SKILL.md` (Claude 네이티브 — 자동 활성) |
+| Gemini 복제 | `~/.gemini/commands/<name>.toml` (symlink → SKILL.md) |
 | 프롬프트 | `~/.airuncat/prompts/<name>.md` |
 | 커스텀 이름 | `~/.airuncat/custom-names.json` |
 | MCP 서버 목록 | `~/.mcp.json` (등록/삭제) |
@@ -75,7 +74,7 @@ build.sh                   release 빌드 + .app 번들 조립 + 자체 서명
 | statusline 캐시 | `~/.airuncat/hook-state/statusline/<sessionId>.json` (네이티브 ctx %·rate limits·모델) |
 | 품질 진단 캐시 | `~/.airuncat/quality-cache.json` (projectPath별 QualityReport, 입력 해시) |
 
-**스킬 수동 추가:** `~/.airuncat/skills/SKILL_[NAME].md` 생성 → 앱 C/G 배지 토글로 링크
+**스킬 수동 추가:** `~/.claude/skills/<name>/SKILL.md` 생성 → Claude 자동 인식, 앱 G 배지로 Gemini 복제
 **프롬프트 수동 추가:** `~/.airuncat/prompts/<name>.md` 생성 → 새로고침
 
 ## Active Rules

@@ -1,18 +1,17 @@
 import Foundation
 
-enum AI { case claude, gemini }
-
+/// Gemini 복제 링크 관리 + 네이티브 스킬 생성/삭제.
+/// Claude 쪽은 관리할 게 없다 — `~/.claude/skills/`의 스킬은 Claude가 자동 인식(항상 활성).
 enum SkillToggler {
-    // MARK: - Enable (create symlink)
+    // MARK: - Gemini replication (symlink)
 
-    /// Creates a symlink from the commands dir to the local skill file.
+    /// `~/.gemini/commands/<name>.toml` symlink를 SKILL.md로 생성한다.
     /// Returns nil on success, error message on failure.
     @discardableResult
-    static func enable(_ skill: SkillRecord, for ai: AI) -> String? {
-        let linkPath = ai == .claude ? skill.claudeLinkPath : skill.geminiLinkPath
+    static func enableGemini(_ skill: SkillRecord) -> String? {
+        let linkPath = skill.geminiLinkPath
         let fm = FileManager.default
 
-        // Ensure the target directory exists
         let dir = (linkPath as NSString).deletingLastPathComponent
         if !fm.fileExists(atPath: dir) {
             do {
@@ -35,30 +34,26 @@ enum SkillToggler {
         }
     }
 
-    // MARK: - Disable (remove symlink)
-
-    /// Removes the symlink. Only removes if it is actually a symlink — never touches regular files.
+    /// Removes the Gemini symlinks (both `.toml`/`.md` — legacy 링크가 남으면 토글이 되돌아온다).
+    /// 이 스킬을 가리키거나 깨진 symlink만 제거하고, 무관 링크/실파일은 건드리지 않는다.
     @discardableResult
-    static func disable(_ skill: SkillRecord, for ai: AI) -> String? {
-        let linkPath = ai == .claude ? skill.claudeLinkPath : skill.geminiLinkPath
-        return removeIfSymlink(at: linkPath)
+    static func disableGemini(_ skill: SkillRecord) -> String? {
+        // 우선 경로가 실파일이면 기존처럼 명시적으로 알린다 (조용한 no-op 방지).
+        var st = stat()
+        if lstat(skill.geminiLinkPath, &st) == 0, (st.st_mode & S_IFMT) != S_IFLNK {
+            return "심볼릭 링크가 아닙니다. 수동으로 확인하세요: \(skill.geminiLinkPath)"
+        }
+        return removeGeminiLinks(id: skill.id, sourcePath: skill.sourcePath)
     }
 
     // MARK: - Repair All
 
-    /// Re-creates broken links. Returns a list of (name, error) for any that failed.
+    /// Re-creates broken Gemini links. Returns a list of (name, error) for any that failed.
     static func repairAll(_ skills: [SkillRecord]) -> [(name: String, error: String)] {
         var failures: [(String, String)] = []
-        for skill in skills {
-            if skill.claudeState == .broken {
-                if let err = enable(skill, for: .claude) {
-                    failures.append((skill.id + " (C)", err))
-                }
-            }
-            if skill.geminiState == .broken {
-                if let err = enable(skill, for: .gemini) {
-                    failures.append((skill.id + " (G)", err))
-                }
+        for skill in skills where skill.geminiState == .broken {
+            if let err = enableGemini(skill) {
+                failures.append((skill.id, err))
             }
         }
         return failures
@@ -68,46 +63,37 @@ enum SkillToggler {
 
     @discardableResult
     static func deleteOrphan(_ orphan: OrphanLink) -> String? {
-        return removeIfSymlink(at: orphan.path)
+        removeIfSymlink(at: orphan.path)
     }
 
     // MARK: - Create Skill
 
-    /// Creates SKILL_*.md in ~/.airuncat/skills/ and optionally symlinks it.
-    /// Returns (record, fileError). Symlink errors are stored in record.claudeError/geminiError.
+    /// `~/.claude/skills/<name>/SKILL.md`를 생성하고 선택적으로 Gemini에 복제한다.
+    /// Returns (record, fileError). Gemini 링크 오류는 record.geminiError에 담긴다.
     static func createSkill(
         name: String,
         description: String,
-        linkClaude: Bool,
         linkGemini: Bool
     ) -> (record: SkillRecord?, fileError: String?) {
         let fm = FileManager.default
-        let skillsDir = SkillManager.skillsDir
-
-        // Ensure skills directory exists
-        if !fm.fileExists(atPath: skillsDir) {
-            do { try fm.createDirectory(atPath: skillsDir, withIntermediateDirectories: true) }
-            catch { return (nil, "디렉토리 생성 실패: \(error.localizedDescription)") }
-        }
-
         let stem = name.lowercased().replacingOccurrences(of: "_", with: "-")
-        let sourcePath = (skillsDir as NSString).appendingPathComponent("\(stem).md")
+        let skillDir = (PathConstants.claudeSkills as NSString).appendingPathComponent(stem)
+        let sourcePath = (skillDir as NSString).appendingPathComponent("SKILL.md")
 
-        let df = DateFormatter()
-        df.locale = Locale(identifier: "en_US_POSIX")
-        df.dateFormat = "yyyy-MM-dd"
-        let dateStr = df.string(from: Date())
+        guard !fm.fileExists(atPath: skillDir) else {
+            return (nil, "이미 존재하는 스킬입니다: \(stem)")
+        }
+        do { try fm.createDirectory(atPath: skillDir, withIntermediateDirectories: true) }
+        catch { return (nil, "디렉토리 생성 실패: \(error.localizedDescription)") }
+
         let escapedDesc = description
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
             .replacingOccurrences(of: "\n", with: " ")
         let content = """
         ---
-        title: "\(name)"
+        name: \(stem)
         description: "\(escapedDesc)"
-        date: \(dateStr)
-        tags: []
-        status: active
         ---
 
         """
@@ -115,28 +101,16 @@ enum SkillToggler {
         do { try content.write(toFile: sourcePath, atomically: true, encoding: .utf8) }
         catch { return (nil, "파일 생성 실패: \(error.localizedDescription)") }
 
-        guard fm.fileExists(atPath: sourcePath) else { return (nil, "파일 생성 확인 실패") }
-
-        // Use `stem` (kebab-case, lowercased) for link paths — same as the file stem on disk.
-        let claudeLink = (SkillScanner.claudeCommandsDir as NSString).appendingPathComponent("\(stem).md")
-        let geminiLink = (SkillScanner.geminiCommandsDir as NSString).appendingPathComponent("\(stem).toml")
-
         var record = SkillRecord(
             id: stem, description: description, sourcePath: sourcePath,
-            scope: .global,
-            claudeState: .unlinked, geminiState: .unlinked,
-            claudeLinkPath: claudeLink, geminiLinkPath: geminiLink
+            scope: .native,
+            geminiState: .unlinked,
+            geminiLinkPath: SkillScanner.geminiLinkPath(for: stem)
         )
 
-        if linkClaude {
-            record.claudeError = enable(record, for: .claude)
-            record.claudeState = SkillScanner.linkState(at: claudeLink)
-        }
         if linkGemini {
-            record.geminiError = enable(record, for: .gemini)
-            let newLink = SkillScanner.geminiLinkPath(for: stem)
-            record.geminiState = SkillScanner.linkState(at: newLink)
-            record.geminiLinkPath = newLink
+            record.geminiError = enableGemini(record)
+            record.geminiState = SkillScanner.linkState(at: record.geminiLinkPath)
         }
 
         return (record, nil)
@@ -146,33 +120,58 @@ enum SkillToggler {
 
     struct DeleteResult {
         var warnings: [String] = []  // symlink errors (non-fatal)
-        var fileError: String? = nil  // fatal: source file not removed
+        var fileError: String? = nil  // fatal: skill dir not removed
     }
 
-    /// Removes all symlinks then the local source file. Always attempts all steps.
+    /// Gemini 링크를 제거한 뒤 스킬 디렉토리를 삭제한다.
+    /// symlink 디렉토리(외부 repo 연결)는 링크만 제거되고 원본은 남는다(removeItem 의미론).
     static func deleteSkill(_ skill: SkillRecord) -> DeleteResult {
         var result = DeleteResult()
 
-        // 1. Claude symlink
-        if let err = removeIfSymlink(at: skill.claudeLinkPath) { result.warnings.append(err) }
-
-        // 2. Gemini symlinks — record's actual path + both extensions to catch legacy links
-        let geminiToml = (SkillScanner.geminiCommandsDir as NSString).appendingPathComponent("\(skill.id).toml")
-        let geminiMd   = (SkillScanner.geminiCommandsDir as NSString).appendingPathComponent("\(skill.id).md")
-        var geminiPaths = [geminiToml, geminiMd]
-        if !geminiPaths.contains(skill.geminiLinkPath) { geminiPaths.append(skill.geminiLinkPath) }
-        for path in geminiPaths {
-            if let err = removeIfSymlink(at: path) { result.warnings.append(err) }
+        // 1. Gemini symlinks — 양쪽 확장자 모두 (legacy .md 링크 포함). 무관 링크는 보호.
+        if let err = removeGeminiLinks(id: skill.id, sourcePath: skill.sourcePath) {
+            result.warnings.append(err)
         }
 
-        // 3. Local source file (fatal)
-        do { try FileManager.default.removeItem(atPath: skill.sourcePath) }
-        catch { result.fileError = "파일 삭제 실패: \(error.localizedDescription)" }
+        // 2. 스킬 디렉토리 — ~/.claude/skills/ 아래일 때만 (안전 가드)
+        let skillDir = (skill.sourcePath as NSString).deletingLastPathComponent
+        let root = PathConstants.claudeSkills
+        guard skill.scope == .native, skillDir.hasPrefix(root + "/"),
+              (skillDir as NSString).deletingLastPathComponent == root else {
+            result.fileError = "글로벌 스킬 경로가 아닙니다: \(skillDir)"
+            return result
+        }
+        do { try FileManager.default.removeItem(atPath: skillDir) }
+        catch { result.fileError = "삭제 실패: \(error.localizedDescription)" }
 
         return result
     }
 
     // MARK: - Private
+
+    /// `<id>.{toml,md}` symlink 중 이 스킬을 가리키거나 깨진 것만 제거한다.
+    private static func removeGeminiLinks(id: String, sourcePath: String) -> String? {
+        let fm = FileManager.default
+        var firstError: String? = nil
+        for ext in ["toml", "md"] {
+            let path = (SkillScanner.geminiCommandsDir as NSString).appendingPathComponent("\(id).\(ext)")
+            var st = stat()
+            guard lstat(path, &st) == 0, (st.st_mode & S_IFMT) == S_IFLNK else { continue }
+            let broken = !fm.fileExists(atPath: path)   // follows the link
+            guard broken || resolvedTarget(of: path) == (sourcePath as NSString).standardizingPath else { continue }
+            do { try fm.removeItem(atPath: path) }
+            catch { firstError = firstError ?? "링크 제거 실패: \(error.localizedDescription)" }
+        }
+        return firstError
+    }
+
+    /// symlink 대상을 절대경로로 해석한다.
+    private static func resolvedTarget(of path: String) -> String? {
+        guard let dest = try? FileManager.default.destinationOfSymbolicLink(atPath: path) else { return nil }
+        if dest.hasPrefix("/") { return (dest as NSString).standardizingPath }
+        let base = (path as NSString).deletingLastPathComponent
+        return ((base as NSString).appendingPathComponent(dest) as NSString).standardizingPath
+    }
 
     private static func removeIfSymlink(at path: String) -> String? {
         var st = stat()

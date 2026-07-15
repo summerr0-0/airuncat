@@ -155,7 +155,7 @@ AppKit, CLT 빌드(Xcode 불필요). 소스 49파일 · 약 11K줄 · Phase 1~17
 
 | 탭/기능 | 무엇 | 왜 | 파일 |
 |---------|------|-----|------|
-| **Skills** | ~/.airuncat/skills(글로벌)·프로젝트 `.claude/{commands,skills}`·네이티브 `~/.claude/skills`를 스코프별 접이식 폴더로. C/G 링크 토글로 활성화 | 흩어진 스킬(슬래시 커맨드)을 한곳에서 관리·활성화 | `SkillScanner`,`SkillToggler`,`SkillsView` |
+| **Skills** | 원본은 `~/.claude/skills/<n>/SKILL.md`(Claude 네이티브 — 항상 활성) + 프로젝트 `.claude/{commands,skills}`. G 토글로 Gemini 복제만 관리 | 흩어진 스킬(슬래시 커맨드)을 한곳에서 관리·활성화 | `SkillScanner`,`SkillToggler`,`SkillsView` |
 | **Prompts** | ~/.airuncat/prompts 프롬프트를 핀/카테고리/검색, 세션에 삽입 | 반복 프롬프트 재사용 | `PromptScanner`,`PromptManager`,`PromptLibraryView` |
 | **MCP** | ~/.mcp.json 서버 등록/삭제 + settings.local.json 활성 토글 | MCP 서버를 GUI로 켜고 끔 | `MCPScanner`,`MCPManager`,`MCPView` |
 | **CLAUDE.md 배지** | 글로벌/프로젝트 CLAUDE.md 존재·미리보기·생성 | 하네스 핵심 파일 빠른 접근 | `ClaudeMdScanner`,`ClaudeMdPopoverView` |

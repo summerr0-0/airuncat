@@ -118,8 +118,8 @@ struct AiruncatApp: App {
                 exit(0)
             }
         }
-        // Obsidian → ~/.airuncat 일회성 마이그레이션. 스캐너(읽기)에서 분리해 시작 시 1회만 수행.
-        SkillManager.migrateFromObsidianIfNeeded()
+        // 일회성 마이그레이션. 스캐너(읽기)에서 분리해 시작 시 1회만 수행.
+        SkillManager.migrateStoreToClaudeIfNeeded()   // ~/.airuncat/skills → ~/.claude/skills (Claude 네이티브가 원본)
         PromptManager.migrateFromObsidianIfNeeded()
         NotificationManager.shared.requestPermission()
     }

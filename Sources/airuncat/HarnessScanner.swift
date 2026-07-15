@@ -127,8 +127,8 @@ enum HarnessScanner {
     }
 
     /// 프로젝트-로컬 자동화(슬래시 커맨드/스킬) 파일 수.
-    /// `<cwd>/.claude/commands` + `<cwd>/.claude/skills`의 *.md를 직접 세어
-    /// SkillScanner의 Obsidian 마이그레이션 쓰기 부작용과 글로벌 충돌 필터를 피한다.
+    /// `<cwd>/.claude/commands` + `<cwd>/.claude/skills`의 *.md를 직접 센다
+    /// (SkillScanner 전체 스캔 없이 프로젝트-로컬 신호만 필요해서).
     private static func countProjectSkills(cwd: String) -> Int {
         let fm = FileManager.default
         var count = 0

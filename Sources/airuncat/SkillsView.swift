@@ -16,13 +16,11 @@ struct SkillsView: View {
     @State private var collapsed: Set<String> = []   // 접힌 섹션 id
     @State private var isLoading = true
     @State private var repairErrors: [String] = []
-    @State private var skillsDirMissing = false
 
     // Create form state
     @State private var showCreateForm = false
     @State private var createName = ""
     @State private var createDescription = ""
-    @State private var createClaude = true
     @State private var createGemini = true
     @State private var createError: String? = nil
 
@@ -30,11 +28,9 @@ struct SkillsView: View {
         VStack(alignment: .leading, spacing: 0) {
             searchBar
             Divider()
-            if skillsDirMissing {
-                missingSkillsDirNote
-            } else if isLoading {
+            if isLoading {
                 loadingRow
-            } else if skills.isEmpty {
+            } else if skills.isEmpty && orphans.isEmpty {
                 emptyState
             } else {
                 ScrollView {
@@ -45,7 +41,7 @@ struct SkillsView: View {
                                 ForEach(section.items) { skill in
                                     SkillRow(
                                         skill: skill,
-                                        onToggle: { toggle($0, for: $1) },
+                                        onToggleGemini: { toggleGemini($0) },
                                         onDelete: { deleteSkill(skill) }
                                     )
                                     Divider().opacity(0.4)
@@ -96,23 +92,11 @@ struct SkillsView: View {
     }
 
     private var emptyState: some View {
-        Text("No skills found in ~/.airuncat/skills")
+        Text("No skills found in ~/.claude/skills")
             .font(.system(size: 11))
             .foregroundColor(.secondary)
             .frame(maxWidth: .infinity, alignment: .center)
             .padding(.vertical, 16)
-    }
-
-    private var missingSkillsDirNote: some View {
-        VStack(spacing: 4) {
-            Text("Skills directory not found")
-                .font(.system(size: 12, weight: .medium))
-            Text(SkillManager.skillsDir)
-                .font(.system(size: 10, design: .monospaced))
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .center)
-        .padding(.vertical, 16)
     }
 
     private var orphanSection: some View {
@@ -144,10 +128,10 @@ struct SkillsView: View {
 
     private var bottomBar: some View {
         HStack {
-            let brokenCount = skills.filter {
-                $0.claudeState == .broken || $0.geminiState == .broken
+            let brokenCount = skills.filter { $0.geminiState == .broken }.count
+            let unlinkedGemini = skills.filter {
+                $0.scope == .native && $0.geminiState == .unlinked
             }.count
-            let unlinkedGemini = skills.filter { $0.geminiState == .unlinked }.count
 
             if brokenCount > 0 {
                 Button("수리 (\(brokenCount))") { repairAll() }
@@ -155,7 +139,7 @@ struct SkillsView: View {
                     .font(.system(size: 11))
                     .foregroundColor(.red)
             } else if unlinkedGemini > 0 {
-                Text("Gemini 미연결 \(unlinkedGemini)개")
+                Text("Gemini 미복제 \(unlinkedGemini)개")
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
             }
@@ -218,14 +202,16 @@ struct SkillsView: View {
                     .textFieldStyle(.plain)
                     .font(.system(size: 12))
             }
-            // Link toggles
+            // Gemini replication toggle — Claude는 항상 활성이라 선택지가 없다
             HStack(spacing: 8) {
-                Text("연결")
+                Text("복제")
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
                     .frame(width: 32, alignment: .trailing)
-                FormLinkToggle("C", isOn: $createClaude)
                 FormLinkToggle("G", isOn: $createGemini)
+                Text(createGemini ? "Gemini에도 복제" : "Claude 전용")
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
                 Spacer()
             }
             // Error
@@ -259,30 +245,27 @@ struct SkillsView: View {
         return skills.filter { $0.id.contains(q) || $0.description.lowercased().contains(q) }
     }
 
-    /// 스코프별 섹션. global → project → native(출처 프로젝트별 폴더)로 분리.
+    /// 스코프별 섹션. 글로벌(네이티브, 출처별) → 프로젝트(폴더별).
     private var skillSections: [SkillSection] {
         let items = filteredSkills
         var out: [SkillSection] = []
-        let global = items.filter { $0.scope == .global }
-        if !global.isEmpty { out.append(SkillSection(id: "global", title: "airuncat 스킬", items: global)) }
-
-        // 프로젝트: 프로젝트 폴더별로 분리.
+        // 글로벌: 로컬 실체는 "글로벌", symlink 출처는 "글로벌 · <repo>".
+        out.append(contentsOf: groupedSections(items.filter { $0.scope == .native },
+                                               idPrefix: "global", titlePrefix: "글로벌", fallback: "로컬"))
         out.append(contentsOf: groupedSections(items.filter { $0.scope == .project },
                                                idPrefix: "project", titlePrefix: "프로젝트", fallback: "프로젝트"))
-        // 네이티브: 출처 프로젝트별로 분리.
-        out.append(contentsOf: groupedSections(items.filter { $0.scope == .native },
-                                               idPrefix: "native", titlePrefix: "네이티브", fallback: "로컬"))
         return out
     }
 
-    /// scope가 같은 레코드들을 group(프로젝트/출처)별 섹션으로 나눈다(등장 순서 유지).
+    /// scope가 같은 레코드들을 group(출처/프로젝트)별 섹션으로 나눈다(등장 순서 유지).
     private func groupedSections(_ items: [SkillRecord], idPrefix: String,
                                  titlePrefix: String, fallback: String) -> [SkillSection] {
         var seen = Set<String>(), groups: [String] = []
         for s in items { let g = s.group ?? fallback; if seen.insert(g).inserted { groups.append(g) } }
         return groups.map { g in
-            SkillSection(id: "\(idPrefix)-\(g)", title: "\(titlePrefix) · \(g)",
-                         items: items.filter { ($0.group ?? fallback) == g })
+            let title = (idPrefix == "global" && g == "로컬") ? titlePrefix : "\(titlePrefix) · \(g)"
+            return SkillSection(id: "\(idPrefix)-\(g)", title: title,
+                                items: items.filter { ($0.group ?? fallback) == g })
         }
     }
 
@@ -323,35 +306,28 @@ struct SkillsView: View {
         let (s, o) = await Task.detached(priority: .userInitiated) {
             SkillScanner.scan(projectCwds: cwds)
         }.value
-        skillsDirMissing = s.isEmpty && !FileManager.default.fileExists(atPath: SkillManager.skillsDir)
         skills = s
         orphans = o
         repairErrors = []
         isLoading = false
     }
 
-    private func toggle(_ skill: SkillRecord, for ai: AI) {
-        guard let idx = skills.firstIndex(where: { $0.id == skill.id }) else { return }
-        let current = ai == .claude ? skill.claudeState : skill.geminiState
+    private func toggleGemini(_ skill: SkillRecord) {
+        guard let idx = skills.firstIndex(where: { $0.id == skill.id && $0.scope == .native }) else { return }
         let error: String?
-        if current == .linked {
-            error = SkillToggler.disable(skill, for: ai)
+        if skill.geminiState == .linked {
+            error = SkillToggler.disableGemini(skill)
         } else {
-            error = SkillToggler.enable(skill, for: ai)
+            error = SkillToggler.enableGemini(skill)
         }
         if let err = error {
-            if ai == .claude { skills[idx].claudeError = err }
-            else             { skills[idx].geminiError = err }
+            skills[idx].geminiError = err
         } else {
             // Re-check state from disk
-            let claudeState = SkillScanner.linkState(at: skills[idx].claudeLinkPath)
-            let newGeminiLink = SkillScanner.geminiLinkPath(for: skills[idx].id)
-            let geminiState = SkillScanner.linkState(at: newGeminiLink)
-            skills[idx].claudeState = claudeState
-            skills[idx].geminiState = geminiState
-            skills[idx].geminiLinkPath = newGeminiLink
-            if ai == .claude { skills[idx].claudeError = nil }
-            else             { skills[idx].geminiError = nil }
+            let newLink = SkillScanner.geminiLinkPath(for: skills[idx].id)
+            skills[idx].geminiState = SkillScanner.linkState(at: newLink)
+            skills[idx].geminiLinkPath = newLink
+            skills[idx].geminiError = nil
         }
     }
 
@@ -359,8 +335,7 @@ struct SkillsView: View {
         let errors = SkillToggler.repairAll(skills)
         repairErrors = errors.map { "\($0.name): \($0.error)" }
         // Refresh states
-        for idx in skills.indices {
-            skills[idx].claudeState = SkillScanner.linkState(at: skills[idx].claudeLinkPath)
+        for idx in skills.indices where skills[idx].scope == .native {
             let newLink = SkillScanner.geminiLinkPath(for: skills[idx].id)
             skills[idx].geminiState = SkillScanner.linkState(at: newLink)
             skills[idx].geminiLinkPath = newLink
@@ -385,22 +360,16 @@ struct SkillsView: View {
     }
 
     private func isDuplicateName(_ name: String) -> Bool {
-        if skills.contains(where: { $0.id == name }) { return true }
-        // Normalize all SKILL_*.md stems to kebab for comparison (handles both _ and - variants)
-        guard let items = try? FileManager.default.contentsOfDirectory(atPath: SkillManager.skillsDir)
-        else { return false }
-        return items.contains { file in
-            guard file.hasPrefix("SKILL_"), file.hasSuffix(".md") else { return false }
-            let stem = String(file.dropFirst("SKILL_".count).dropLast(".md".count))
-            return stem.lowercased().replacingOccurrences(of: "_", with: "-") == name
-        }
+        if skills.contains(where: { $0.id == name && $0.scope == .native }) { return true }
+        let dir = (PathConstants.claudeSkills as NSString).appendingPathComponent(name)
+        var st = stat()
+        return lstat(dir, &st) == 0   // 깨진 symlink도 자리 차지 — fileExists는 놓친다
     }
 
     private func resetCreateForm() {
         showCreateForm = false
         createName = ""
         createDescription = ""
-        createClaude = true
         createGemini = true
         createError = nil
     }
@@ -411,10 +380,9 @@ struct SkillsView: View {
         // Capture @State values before entering detached task (Swift 6: @State is MainActor-isolated)
         let name = createName
         let desc = createDescription
-        let lc = createClaude
         let lg = createGemini
         let (record, fileError) = await Task.detached(priority: .userInitiated) {
-            SkillToggler.createSkill(name: name, description: desc, linkClaude: lc, linkGemini: lg)
+            SkillToggler.createSkill(name: name, description: desc, linkGemini: lg)
         }.value
 
         if let err = fileError {
@@ -423,8 +391,8 @@ struct SkillsView: View {
         }
         // Capture link errors before resetting form (resetCreateForm clears createError)
         var linkErr: String? = nil
-        if let rec = record, (rec.claudeError != nil || rec.geminiError != nil) {
-            linkErr = [rec.claudeError, rec.geminiError].compactMap { $0 }.joined(separator: " / ")
+        if let rec = record, let ge = rec.geminiError {
+            linkErr = ge
         }
         resetCreateForm()
         await reload()
@@ -437,7 +405,7 @@ struct SkillsView: View {
     private func deleteSkill(_ skill: SkillRecord) {
         let result = SkillToggler.deleteSkill(skill)
         if result.fileError == nil {
-            skills.removeAll { $0.id == skill.id }
+            skills.removeAll { $0.id == skill.id && $0.scope == .native }
         }
         Task {
             await reload()  // reload() resets repairErrors; append warnings AFTER
@@ -455,27 +423,18 @@ struct SkillsView: View {
 
 private struct SkillRow: View {
     let skill: SkillRecord
-    let onToggle: (SkillRecord, AI) -> Void
+    let onToggleGemini: (SkillRecord) -> Void
     let onDelete: () -> Void
     @State private var hovering = false
     @State private var confirmingDelete = false
 
-    private var scopeBadge: String {
-        switch skill.scope { case .project: return "P"; case .native: return "N"; case .global: return "G" }
-    }
-    private var scopeBadgeColor: Color {
-        switch skill.scope {
-        case .project: return .orange
-        case .native:  return AiruncatDesign.aiColor(.claude)   // 네이티브 = Claude
-        case .global:  return .secondary
-        }
-    }
-    private var scopeHelp: String {
-        switch skill.scope {
-        case .project: return "프로젝트 로컬 (.claude/commands/)"
-        case .native:  return "Claude 네이티브 스킬 (~/.claude/skills/) — 자동 활성, 링크 관리 없음"
-        case .global:  return "글로벌 (~/.airuncat/skills/)"
-        }
+    private var canManage: Bool { skill.scope == .native }
+
+    /// 스킬 디렉토리가 외부 repo로의 symlink인지 (삭제 시 링크만 해제됨).
+    private var isLinkedDir: Bool {
+        let dir = (skill.sourcePath as NSString).deletingLastPathComponent
+        var st = stat()
+        return lstat(dir, &st) == 0 && (st.st_mode & S_IFMT) == S_IFLNK
     }
 
     var body: some View {
@@ -491,7 +450,7 @@ private struct SkillRow: View {
                             .foregroundColor(.secondary)
                             .lineLimit(2)
                     }
-                    if let err = skill.claudeError ?? skill.geminiError {
+                    if let err = skill.geminiError {
                         Text(err)
                             .font(.system(size: 10))
                             .foregroundColor(.red)
@@ -502,15 +461,15 @@ private struct SkillRow: View {
                 Spacer(minLength: 8)
 
                 HStack(spacing: 5) {
-                    // Scope badge
-                    Text(scopeBadge)
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundColor(scopeBadgeColor)
-                        .help(scopeHelp)
+                    if skill.scope == .project {
+                        Text("P")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundColor(.orange)
+                            .help("프로젝트 로컬 (.claude/commands · skills)")
+                    }
 
-                    if skill.scope == .global {
-                        LinkBadge("C", state: skill.claudeState) { onToggle(skill, .claude) }
-                        LinkBadge("G", state: skill.geminiState) { onToggle(skill, .gemini) }
+                    if canManage {
+                        LinkBadge("G", state: skill.geminiState) { onToggleGemini(skill) }
                         if hovering && !confirmingDelete {
                             Button {
                                 confirmingDelete = true
@@ -537,7 +496,7 @@ private struct SkillRow: View {
             }
             .help("파인더에서 열기: \(skill.sourcePath)")
 
-            if confirmingDelete && skill.scope == .global {
+            if confirmingDelete && canManage {
                 Divider().opacity(0.4)
                 HStack(spacing: 0) {
                     Button("취소") { confirmingDelete = false }
@@ -545,7 +504,8 @@ private struct SkillRow: View {
                         .font(.system(size: 10))
                         .foregroundColor(.secondary)
                     Spacer()
-                    Text("파일 및 링크를 모두 삭제합니다")
+                    Text(isLinkedDir ? "외부 연결 링크만 해제됩니다 (원본 보존)"
+                                     : "스킬 폴더 전체와 Gemini 링크를 삭제합니다")
                         .font(.system(size: 10))
                         .foregroundColor(.red.opacity(0.8))
                     Spacer()
@@ -581,10 +541,10 @@ private struct LinkBadge: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 2) {
-                // 글자색 = AI 정체성(Claude 보라/Gemini 청록), 글리프·배경 = 링크 상태
+                // 글자색 = AI 정체성(Gemini 청록), 글리프·배경 = 링크 상태
                 Text(label)
                     .font(.system(size: 9, weight: .bold, design: .monospaced))
-                    .foregroundColor(aiColor)
+                    .foregroundColor(AiruncatDesign.aiColor(.gemini))
                 Text(stateGlyph)
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundColor(badgeForeground)
@@ -596,10 +556,6 @@ private struct LinkBadge: View {
         }
         .buttonStyle(.plain)
         .help(helpText)
-    }
-
-    private var aiColor: Color {
-        AiruncatDesign.aiColor(label == "C" ? .claude : .gemini)
     }
 
     private var stateGlyph: String {
@@ -628,9 +584,9 @@ private struct LinkBadge: View {
 
     private var helpText: String {
         switch state {
-        case .linked:   return "\(label) 연결됨 — 클릭으로 해제"
-        case .broken:   return "\(label) 링크 깨짐 — 클릭으로 수리"
-        case .unlinked: return "\(label) 미연결 — 클릭으로 연결"
+        case .linked:   return "Gemini에 복제됨 — 클릭으로 해제"
+        case .broken:   return "Gemini 링크 깨짐 — 클릭으로 수리"
+        case .unlinked: return "Gemini 미복제 — 클릭으로 복제"
         }
     }
 }
@@ -690,18 +646,14 @@ private struct FormLinkToggle: View {
         self._isOn = isOn
     }
 
-    private var aiColor: Color {
-        AiruncatDesign.aiColor(label == "C" ? .claude : .gemini)
-    }
-
     var body: some View {
         Button { isOn.toggle() } label: {
             Text(label)
                 .font(.system(size: 10, weight: .bold, design: .monospaced))
                 .padding(.horizontal, 6)
                 .padding(.vertical, 3)
-                .background(isOn ? aiColor.opacity(0.18) : Color.primary.opacity(0.07))
-                .foregroundColor(isOn ? aiColor : .secondary)
+                .background(isOn ? AiruncatDesign.aiColor(.gemini).opacity(0.18) : Color.primary.opacity(0.07))
+                .foregroundColor(isOn ? AiruncatDesign.aiColor(.gemini) : .secondary)
                 .clipShape(RoundedRectangle(cornerRadius: 4))
         }
         .buttonStyle(.plain)

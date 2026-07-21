@@ -14,10 +14,19 @@ airuncat이 읽는 외부 데이터와 세션 재개 메커니즘.
   - active < 90초, idle < 30분, 그 외 resting
 - 성능: `size <= 4MB`면 전체 파싱, 크면 head/tail 512KB만. mtime 동일하면 캐시 재사용.
 
-## Gemini CLI 세션 (Phase 4 예정)
+## Antigravity CLI(agy) 대화
 
-- 위치: `~/.gemini/tmp/<hash>/chats/*.jsonl` (참고: hyunho058/ai-monitor)
-- 아직 미연동. 통합 시 SessionScanner에 소스를 추가한다.
+gemini CLI 지원종료(2026-06) 후속. agy는 `~/.gemini`을 홈으로 공유한다.
+
+- 대화 본문: `~/.gemini/antigravity-cli/conversations/<id>.db` — SQLite, 내용은 프로토버프 blob이라
+  **파싱하지 않는다**. 활동 판정은 db/-wal 중 최신 mtime (active/idle/resting은 Claude와 동일 기준).
+- 유저 입력 로그: `~/.gemini/antigravity-cli/history.jsonl`
+  (`{display, timestamp(ms), workspace, conversationId}`) — 제목·마지막 지시·cwd의 1차 소스.
+  단 `agy -p`(헤드리스)는 기록 안 됨.
+- cwd 폴백: `~/.gemini/antigravity-cli/cache/last_conversations.json` (`{cwd: conversationId}` 역매핑).
+- 재개: `agy --conversation <id>` (ITermController가 새 탭에서 실행).
+- 스킬 복제(G 토글): `~/.gemini/skills/<name>` 디렉토리 symlink → `~/.claude/skills/<name>`
+  (SKILL.md 포맷 동일 — Antigravity IDE·CLI 공용 공유 스킬 경로).
 
 ## 세션 이동 (iTerm2)
 

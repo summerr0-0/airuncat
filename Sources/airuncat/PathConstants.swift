@@ -20,10 +20,14 @@ enum PathConstants {
     static var globalClaudeMd:      String { p(".claude/CLAUDE.md") }
     static var mcpJson:             String { p(".mcp.json") }
 
-    // MARK: - Gemini CLI
+    // MARK: - Gemini / Antigravity (agy는 ~/.gemini을 홈으로 공유)
 
-    static var geminiCommands:      String { p(".gemini/commands") }
-    static var geminiTmp:           String { p(".gemini/tmp") }
+    static var geminiCommands:      String { p(".gemini/commands") }        // legacy gemini CLI 커맨드 (지원종료)
+    static var geminiSkills:        String { p(".gemini/skills") }          // Antigravity 공유 스킬 (IDE+CLI)
+    static var geminiTmp:           String { p(".gemini/tmp") }             // legacy gemini CLI 세션
+    static var agyConversations:    String { p(".gemini/antigravity-cli/conversations") }
+    static var agyHistory:          String { p(".gemini/antigravity-cli/history.jsonl") }
+    static var agyLastConversations: String { p(".gemini/antigravity-cli/cache/last_conversations.json") }
 
     // MARK: - airuncat
 

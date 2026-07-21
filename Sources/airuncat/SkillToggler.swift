@@ -5,7 +5,8 @@ import Foundation
 enum SkillToggler {
     // MARK: - Gemini replication (symlink)
 
-    /// `~/.gemini/commands/<name>.toml` symlink를 SKILL.md로 생성한다.
+    /// `~/.gemini/skills/<name>` 디렉토리 symlink → `~/.claude/skills/<name>` 생성.
+    /// SKILL.md 포맷이 동일해 디렉토리째 링크하면 Antigravity(IDE+CLI)가 그대로 읽는다.
     /// Returns nil on success, error message on failure.
     @discardableResult
     static func enableGemini(_ skill: SkillRecord) -> String? {
@@ -26,8 +27,13 @@ enum SkillToggler {
             try? fm.removeItem(atPath: linkPath)
         }
 
+        // 네이티브 스킬(<dir>/SKILL.md)만 디렉토리째 링크 — flat 파일이면 상위 폴더 전체가 걸려버림
+        guard skill.sourcePath.hasSuffix("/SKILL.md") else {
+            return "디렉토리형 스킬이 아닙니다: \(skill.sourcePath)"
+        }
+        let skillDir = (skill.sourcePath as NSString).deletingLastPathComponent
         do {
-            try fm.createSymbolicLink(atPath: linkPath, withDestinationPath: skill.sourcePath)
+            try fm.createSymbolicLink(atPath: linkPath, withDestinationPath: skillDir)
             return nil
         } catch {
             return "링크 생성 실패: \(error.localizedDescription)"
@@ -149,16 +155,23 @@ enum SkillToggler {
 
     // MARK: - Private
 
-    /// `<id>.{toml,md}` symlink 중 이 스킬을 가리키거나 깨진 것만 제거한다.
+    /// 이 스킬의 Gemini 링크(신형 skills 디렉토리 symlink + legacy commands .toml/.md) 중
+    /// 이 스킬을 가리키거나 깨진 것만 제거한다.
     private static func removeGeminiLinks(id: String, sourcePath: String) -> String? {
         let fm = FileManager.default
-        var firstError: String? = nil
+        let skillDir = ((sourcePath as NSString).deletingLastPathComponent as NSString).standardizingPath
+        let source = (sourcePath as NSString).standardizingPath
+        var paths = [(PathConstants.geminiSkills as NSString).appendingPathComponent(id)]
         for ext in ["toml", "md"] {
-            let path = (SkillScanner.geminiCommandsDir as NSString).appendingPathComponent("\(id).\(ext)")
+            paths.append((SkillScanner.geminiCommandsDir as NSString).appendingPathComponent("\(id).\(ext)"))
+        }
+        var firstError: String? = nil
+        for path in paths {
             var st = stat()
             guard lstat(path, &st) == 0, (st.st_mode & S_IFMT) == S_IFLNK else { continue }
             let broken = !fm.fileExists(atPath: path)   // follows the link
-            guard broken || resolvedTarget(of: path) == (sourcePath as NSString).standardizingPath else { continue }
+            let target = resolvedTarget(of: path)
+            guard broken || target == source || target == skillDir else { continue }
             do { try fm.removeItem(atPath: path) }
             catch { firstError = firstError ?? "링크 제거 실패: \(error.localizedDescription)" }
         }

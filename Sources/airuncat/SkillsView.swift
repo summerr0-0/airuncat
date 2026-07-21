@@ -209,7 +209,7 @@ struct SkillsView: View {
                     .foregroundColor(.secondary)
                     .frame(width: 32, alignment: .trailing)
                 FormLinkToggle("G", isOn: $createGemini)
-                Text(createGemini ? "Gemini에도 복제" : "Claude 전용")
+                Text(createGemini ? "Antigravity(Gemini)에도 복제" : "Claude 전용")
                     .font(.system(size: 10))
                     .foregroundColor(.secondary)
                 Spacer()
@@ -584,9 +584,9 @@ private struct LinkBadge: View {
 
     private var helpText: String {
         switch state {
-        case .linked:   return "Gemini에 복제됨 — 클릭으로 해제"
-        case .broken:   return "Gemini 링크 깨짐 — 클릭으로 수리"
-        case .unlinked: return "Gemini 미복제 — 클릭으로 복제"
+        case .linked:   return "Antigravity(Gemini)에 복제됨 — 클릭으로 해제"
+        case .broken:   return "Antigravity(Gemini) 링크 깨짐 — 클릭으로 수리"
+        case .unlinked: return "Antigravity(Gemini) 미복제 — 클릭으로 복제"
         }
     }
 }

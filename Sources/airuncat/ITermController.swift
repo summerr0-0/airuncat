@@ -60,8 +60,9 @@ enum ITermController {
         case .claude:
             cmd = "cd '\(shellEscapeSingle(dir))' && claude -r \(session.sessionId)"
         case .gemini:
-            let exe = shellEscapeSingle(GeminiScanner.geminiPath ?? "gemini")
-            cmd = "cd '\(shellEscapeSingle(dir))' && \(exe)"
+            // agy 대화 재개 (gemini CLI 지원종료 — Antigravity CLI가 후속)
+            let exe = shellEscapeSingle(AgyScanner.agyPath ?? "agy")
+            cmd = "cd '\(shellEscapeSingle(dir))' && \(exe) --conversation '\(shellEscapeSingle(session.sessionId))'"
         }
         // Open in a new tab of the existing window if one exists; otherwise create a window.
         let script = """

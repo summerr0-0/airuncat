@@ -63,6 +63,37 @@ enum SkillManager {
         }
     }
 
+    /// 구 gemini CLI의 `~/.gemini/commands/*.{toml,md}` symlink(→ ~/.claude/skills)를
+    /// Antigravity가 읽는 `~/.gemini/skills/<name>` 디렉토리 symlink로 1회 전환한다.
+    /// gemini CLI 지원종료 후 agy는 skills/만 읽으므로 복제 상태를 보존하려면 필수. idempotent.
+    static func migrateGeminiLinksToAgyIfNeeded() {
+        let fm = FileManager.default
+        let claudeSkillsPrefix = PathConstants.claudeSkills + "/"
+        guard let items = try? fm.contentsOfDirectory(atPath: PathConstants.geminiCommands) else { return }
+
+        for filename in items.sorted() where filename.hasSuffix(".toml") || filename.hasSuffix(".md") {
+            let link = (PathConstants.geminiCommands as NSString).appendingPathComponent(filename)
+            guard let target = symlinkTarget(of: link), target.hasPrefix(claudeSkillsPrefix) else { continue }
+
+            var name = filename
+            for ext in [".toml", ".md"] where name.hasSuffix(ext) { name = String(name.dropLast(ext.count)); break }
+            // 대상 스킬 디렉토리 (target은 .../<name>/SKILL.md 또는 .../<name>)
+            let skillDir = target.hasSuffix("/SKILL.md")
+                ? (target as NSString).deletingLastPathComponent : target
+
+            let newLink = (PathConstants.geminiSkills as NSString).appendingPathComponent(name)
+            var st = stat()
+            if lstat(newLink, &st) != 0 {   // 자리가 비었을 때만 생성 (기존 실체/링크 보존)
+                try? fm.createDirectory(atPath: PathConstants.geminiSkills, withIntermediateDirectories: true)
+                try? fm.createSymbolicLink(atPath: newLink, withDestinationPath: skillDir)
+            }
+            // 새 링크가 실제로 자리잡았을 때만 legacy 제거 — 생성 실패 시 복제 상태 유지(다음 시작 때 재시도)
+            if lstat(newLink, &st) == 0 {
+                try? fm.removeItem(atPath: link)
+            }
+        }
+    }
+
     /// symlink면 절대경로로 해석한 대상, 아니면 nil.
     private static func symlinkTarget(of path: String) -> String? {
         guard let dest = try? FileManager.default.destinationOfSymbolicLink(atPath: path) else { return nil }

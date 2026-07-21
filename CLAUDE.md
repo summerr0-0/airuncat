@@ -1,6 +1,6 @@
 # airuncat
 
-메뉴바 고양이가 병렬 AI 세션(Claude + Gemini)을 관제하고 클릭으로 복귀. AI가 바쁠수록 빨리 뛴다.
+메뉴바 고양이가 병렬 AI 세션(Claude + Antigravity/agy)을 관제하고 클릭으로 복귀. AI가 바쁠수록 빨리 뛴다.
 
 **Stack:** Swift 6.3 | SwiftUI MenuBarExtra | AppKit | SwiftPM | CLT 빌드 (Xcode 불필요)
 
@@ -11,7 +11,7 @@ Sources/airuncat/
   AiruncatApp.swift        앱 진입점, MenuBarExtra scene
   SessionStore.swift       @MainActor ObservableObject, 스캔/애니/idle·closed 감지
   SessionScanner.swift     ~/.claude/projects/*/*.jsonl 파싱 (mtime 캐시, WorkState)
-  GeminiScanner.swift      ~/.gemini/tmp/*/chats/*.jsonl 파싱 (maxAge 48h)
+  AgyScanner.swift         Antigravity CLI 대화 스캔 — conversations/*.db mtime(활동) + history.jsonl(cwd·프롬프트), maxAge 48h. --agy-scan CLI
   CatRenderer.swift        벡터 고양이 프레임 (질주/수면, 좌향, 대기 버블)
   ITermController.swift    iTerm2 탭 포커스 / 새 탭 세션 이동 (AppleScript)
   MenuContentView.swift    드롭다운 UI (Sessions/Skills/Prompts/MCP 탭, 필터 바)
@@ -62,7 +62,7 @@ build.sh                   release 빌드 + .app 번들 조립 + 자체 서명
 | 종류 | 경로 |
 |------|------|
 | 스킬 원본 | `~/.claude/skills/<name>/SKILL.md` (Claude 네이티브 — 자동 활성) |
-| Gemini 복제 | `~/.gemini/commands/<name>.toml` (symlink → SKILL.md) |
+| Gemini(agy) 복제 | `~/.gemini/skills/<name>` (디렉토리 symlink → `~/.claude/skills/<name>`) |
 | 프롬프트 | `~/.airuncat/prompts/<name>.md` |
 | 커스텀 이름 | `~/.airuncat/custom-names.json` |
 | MCP 서버 목록 | `~/.mcp.json` (등록/삭제) |

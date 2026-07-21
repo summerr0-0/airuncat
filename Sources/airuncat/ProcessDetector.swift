@@ -7,20 +7,11 @@ struct ProcessDetector {
         cwdsForProcessName("claude")
     }
 
-    /// Returns the set of cwds that have a live `gemini` process attached.
-    /// Gemini CLI is a Node.js script so comm shows as "node"; match by gemini binary path in args.
+    /// Returns the set of cwds that have a live `agy`(Antigravity CLI) process attached.
+    /// agy는 Go 단일 바이너리라 comm이 그대로 "agy"로 잡힌다.
     static func liveGeminiCwds() -> Set<String> {
-        guard let geminiExe = GeminiScanner.geminiPath else { return [] }
-        let safe = shellEscapeSingle(geminiExe)
-        guard let pidsOut = shell(
-            // -F: fixed-string match (no regex); single-quote escaping handles path special chars.
-            "ps -eo pid,args | grep -F '\(safe)' | grep -v grep | awk '{print $1}' 2>/dev/null"
-        ), !pidsOut.isEmpty else { return [] }
-        return cwdsForPids(pidsOut)
-    }
-
-    private static func shellEscapeSingle(_ s: String) -> String {
-        s.replacingOccurrences(of: "'", with: "'\\''")
+        guard AgyScanner.isAvailable else { return [] }
+        return cwdsForProcessName("agy")
     }
 
     private static func cwdsForProcessName(_ name: String) -> Set<String> {

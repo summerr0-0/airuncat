@@ -226,14 +226,11 @@ enum SkillScanner {
         return name
     }
 
-    /// For Gemini, prefer existing .toml; fall back to .md; default to .toml for new links.
+    /// Gemini(Antigravity) 복제 위치 = `~/.gemini/skills/<name>` 디렉토리 symlink.
+    /// Claude 네이티브와 같은 SKILL.md 포맷이라 변환 없이 디렉토리째 링크한다.
+    /// (구 gemini CLI의 commands/*.toml은 시작 시 마이그레이션으로 전환됨.)
     static func geminiLinkPath(for name: String) -> String {
-        let fm = FileManager.default
-        let toml = (geminiCommandsDir as NSString).appendingPathComponent("\(name).toml")
-        let md   = (geminiCommandsDir as NSString).appendingPathComponent("\(name).md")
-        if fm.fileExists(atPath: toml) { return toml }
-        if fm.fileExists(atPath: md)   { return md }
-        return toml  // default for new creation
+        (PathConstants.geminiSkills as NSString).appendingPathComponent(name)
     }
 
     static func linkState(at path: String, fm: FileManager = .default) -> LinkState {

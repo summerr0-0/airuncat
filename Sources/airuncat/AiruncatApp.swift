@@ -98,6 +98,16 @@ struct AiruncatApp: App {
             }
             exit(0)
         }
+        // Debug path: `airuncat --agy-scan` — AgyScanner 결과 확인 (헤드리스 검증용)
+        if args.contains("--agy-scan") {
+            var cache: [String: (mtime: Date, info: SessionInfo)] = [:]
+            for s in AgyScanner.scan(cache: &cache) {
+                let age = Int(-s.lastActivity.timeIntervalSinceNow)
+                print("[\(s.workState)] \(s.projectName) — \(s.title.prefix(60)) (id \(s.sessionId.prefix(8)), \(age)s ago, msgs \(s.messageCount))")
+            }
+            print("agy: \(AgyScanner.agyPath ?? "not found")")
+            exit(0)
+        }
         // Debug path: `airuncat --hook-recipe list|install <id>|remove <id>` (R5 검증용 CLI)
         if let idx = args.firstIndex(of: "--hook-recipe") {
             let sub = (idx + 1 < args.count) ? args[idx + 1] : "list"
@@ -120,6 +130,7 @@ struct AiruncatApp: App {
         }
         // 일회성 마이그레이션. 스캐너(읽기)에서 분리해 시작 시 1회만 수행.
         SkillManager.migrateStoreToClaudeIfNeeded()   // ~/.airuncat/skills → ~/.claude/skills (Claude 네이티브가 원본)
+        SkillManager.migrateGeminiLinksToAgyIfNeeded() // 구 gemini commands 링크 → agy skills 디렉토리 링크
         PromptManager.migrateFromObsidianIfNeeded()
         NotificationManager.shared.requestPermission()
     }

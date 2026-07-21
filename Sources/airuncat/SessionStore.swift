@@ -114,7 +114,7 @@ final class SessionStore: ObservableObject {
         let names = customNames
         DispatchQueue.global(qos: .utility).async { [weak self] in
             var found = SessionScanner.scan(cache: &localCache)
-            let geminiFound = GeminiScanner.scan(cache: &localGeminiCache)
+            let geminiFound = AgyScanner.scan(cache: &localGeminiCache)
             for i in found.indices {
                 found[i].customName = names[found[i].sessionId]
             }

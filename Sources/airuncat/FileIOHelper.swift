@@ -2,7 +2,7 @@ import Foundation
 
 /// Shared file I/O primitives for JSONL scanners.
 /// Centralises the head/tail-read pattern, JSON line parsing, and string utilities
-/// that were previously duplicated in SessionScanner, GeminiScanner, and StatsScanner.
+/// that were previously duplicated in SessionScanner, AgyScanner, and StatsScanner.
 enum FileIOHelper {
     static let smallFileLimit = 4_000_000   // parse whole file under this size
     static let chunkBytes     = 512_000     // head/tail window for large files
